@@ -1,5 +1,7 @@
 # Antigravity 旧版兼容管理器
 
+项目仓库：[antigravity-old-compat-manager](https://github.com/Huo-zai-feng-lang-li/antigravity-old-compat-manager)
+
 ## 用途
 
 提供两种可回退模式：
