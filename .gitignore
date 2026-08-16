@@ -1,0 +1,18 @@
+# Runtime state and diagnostics
+backups/
+config/
+evidence/
+logs/
+profiles/
+
+# Local tooling state
+.codegraph/daemon.pid
+.serena/memories/
+
+# Build output
+**/bin/
+**/obj/
+
+# Local/binary delivery artifacts
+*.lnk
+*.vsix

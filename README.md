@@ -15,7 +15,6 @@
 ## 项目导航
 
 - 使用说明：`README-稳定模式.md`
-- 设计书：`docs/superpowers/specs/2026-07-23-antigravity-compat-manager-design.md`
 - 新模型兼容规则：`docs/Gemini新模型兼容指南.md`
 - 阶段计划：`task_plan.md`
 - 取证笔记：`notes.md`
