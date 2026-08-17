@@ -25,7 +25,10 @@ $script:Gemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (T
 $script:PreviousGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
 $script:LegacyGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Claude Sonnet 4.6 (thinking)","Claude Opus 4.6 (thinking)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
 $script:Gemini37MainMarker = 'const _agCompatibilityMode="gemini37-v1";'
-$script:Gemini37WorkbenchPrefix = 'const _agCompatibilityMode="gemini37-combined-v2",_agGemini36Ids=new Set([1264,1265]),_agGemini36PreferenceKey="antigravity.compat.gemini36.preference.v1";function _agWriteGemini36(e){try{localStorage.setItem(_agGemini36PreferenceKey,String(e))}catch{}}function _agClearGemini36(){try{localStorage.removeItem(_agGemini36PreferenceKey)}catch{}}function _agReadGemini36(){try{const e=Number(localStorage.getItem(_agGemini36PreferenceKey));return Number.isInteger(e)&&_agGemini36Ids.has(e)?e:void 0}catch{return void 0}}'
+$script:Gemini37WorkbenchPrefix = 'const _agCompatibilityMode="gemini37-combined-v2",_agGemini36Ids=new Set([1264,1265]),_agGemini36PreferenceKey="antigravity.compat.gemini36.preference.v1",_agGemini37PreferenceKey="antigravity.compat.gemini37.preference.v1";function _agWriteGemini36(e){try{localStorage.setItem(_agGemini36PreferenceKey,String(e))}catch{}}function _agClearGemini36(){try{localStorage.removeItem(_agGemini36PreferenceKey)}catch{}}function _agReadGemini36(){try{const e=Number(localStorage.getItem(_agGemini36PreferenceKey));return Number.isInteger(e)&&_agGemini36Ids.has(e)?e:void 0}catch{return void 0}}function _agWriteGemini37(){try{localStorage.setItem(_agGemini37PreferenceKey,"8")}catch{}}function _agClearGemini37(){try{localStorage.removeItem(_agGemini37PreferenceKey)}catch{}}function _agReadGemini37(){try{return localStorage.getItem(_agGemini37PreferenceKey)==="8"}catch{return false}}'
+$script:PreviousGemini37WorkbenchPrefix = 'const _agCompatibilityMode="gemini37-combined-v2",_agGemini36Ids=new Set([1264,1265]),_agGemini36PreferenceKey="antigravity.compat.gemini36.preference.v1";function _agWriteGemini36(e){try{localStorage.setItem(_agGemini36PreferenceKey,String(e))}catch{}}function _agClearGemini36(){try{localStorage.removeItem(_agGemini36PreferenceKey)}catch{}}function _agReadGemini36(){try{const e=Number(localStorage.getItem(_agGemini36PreferenceKey));return Number.isInteger(e)&&_agGemini36Ids.has(e)?e:void 0}catch{return void 0}}'
+$script:Gemini37QbReplacement = 'qb(e){if(e.choice.case==="alias"&&e.choice.value===8){_agWriteGemini37();_agClearGemini36();return}if(e.choice.case!=="model")return;const i=e.choice.value;if(_agGemini36Ids.has(i)){_agWriteGemini36(i);_agClearGemini37();return}_agClearGemini36();_agClearGemini37();const n=Jku(i);this.db.pushUpdate(n)}'
+$script:Gemini37DbReplacement = 'async Db(){const e=await this.db.subscribe("uss-modelPreferences");this.D(Ri(i=>{const n=e.read(i),s=_agReadGemini36()??Hku(n),r=_agReadGemini37()?{case:"alias",value:8}:{case:"model",value:s};this.setSelectedModel(hs(RGl,{choice:r}),void 0,!1)}))}'
 $script:LegacyGemini37WorkbenchPrefix = 'const _agCompatibilityMode="gemini37-v1",_agGemini37Ids=new Set,_agGemini37PreferenceKey="antigravity.compat.gemini37.preference.v1";function _agRememberGemini37(e,t){if(typeof e==="string"&&/^Gemini 3\.7(?: |$)/.test(e)&&!/\(Low\)$/.test(e)&&Number.isInteger(t))_agGemini37Ids.add(t)}function _agWriteGemini37(e){try{localStorage.setItem(_agGemini37PreferenceKey,String(e))}catch{}}function _agClearGemini37(){try{localStorage.removeItem(_agGemini37PreferenceKey)}catch{}}function _agReadGemini37(){try{const e=Number(localStorage.getItem(_agGemini37PreferenceKey));return Number.isInteger(e)&&_agGemini37Ids.has(e)?e:void 0}catch{return void 0}}'
 $script:OlderGemini37WorkbenchPrefix = $script:LegacyGemini37WorkbenchPrefix.Replace(
     'Number.isInteger(e)&&_agGemini37Ids.has(e)?e:void 0',
@@ -184,8 +187,10 @@ function Replace-ExactOnce {
 function Test-Gemini37AgentProSourceContent {
     param([Parameter(Mandatory)][string]$Content)
 
+    $normalizedContent = $Content.Replace("`r`n", "`n")
+    $normalizedHook = $script:Gemini37AgentProHook.TrimEnd("`r", "`n").Replace("`r`n", "`n")
     (Get-ExactCount -Content $Content -Value $script:Gemini37AgentProRequire) -eq 1 -and
-        (Get-ExactCount -Content $Content -Value $script:Gemini37AgentProHook.TrimEnd("`r", "`n")) -eq 1 -and
+        (Get-ExactCount -Content $normalizedContent -Value $normalizedHook) -eq 1 -and
         (Get-ExactCount -Content $Content -Value 'const net = require("net");') -eq 1 -and
         (Get-ExactCount -Content $Content -Value '    _eaHotReload();') -eq 1
 }
@@ -213,8 +218,9 @@ function ConvertTo-StableAgentProSourceContent {
     if (-not (Test-Gemini37AgentProSourceContent -Content $Content)) {
         throw 'Agent Pro source.js 的 Gemini 3.7 路由补丁结构不完整，拒绝回退。'
     }
-    $newLine = [Environment]::NewLine
+    $newLine = if ($Content.Contains($script:Gemini37AgentProRequire + "`r`n" + 'const net = require("net");')) { "`r`n" } else { "`n" }
     $hook = $script:Gemini37AgentProHook.TrimEnd("`r", "`n")
+    if (-not $Content.Contains($hook)) { $hook = $hook.Replace("`r`n", "`n") }
     $stable = Replace-ExactOnce $Content ($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");') 'const net = require("net");' 'Agent Pro helper 引用回退'
     Replace-ExactOnce $stable ($hook + $newLine + '    _eaHotReload();') '    _eaHotReload();' 'Gemini 3.7 请求模型改写回退'
 }
@@ -251,7 +257,7 @@ function Ensure-StableCatalogDefaultSafety {
     }
     $oldTail = 'const n=new Set(t.clientModelConfigs.map(a=>a.modelOrAlias?.choice).filter(a=>a?.case==="model").map(a=>a.value)),a=t.defaultOverrideModelConfig?.modelOrAlias?.choice;return a?.case==="model"&&!n.has(a.value)&&(t.defaultOverrideModelConfig=void 0),e}'
     $guardTail = 'const n=new Set(t.clientModelConfigs.map(a=>a.modelOrAlias?.choice).filter(a=>a?.case==="model").map(a=>a.value)),a=t.defaultOverrideModelConfig?.modelOrAlias?.choice,i=t.clientModelConfigs.find(s=>_agStableStartupLabels.has(s?.label));return i&&(t.defaultOverrideModelConfig=i),a?.case==="model"&&!n.has(a.value)&&(t.defaultOverrideModelConfig=i??void 0),e}'
-    $geminiClearTail = 'const n=new Set(t.clientModelConfigs.map(a=>a.modelOrAlias?.choice).filter(a=>a?.case==="model").map(a=>a.value)),a=t.defaultOverrideModelConfig?.modelOrAlias?.choice,i=a?.case==="model"&&t.clientModelConfigs.find(s=>s.modelOrAlias?.choice?.case==="model"&&s.modelOrAlias.choice.value===a.value);return a?.case==="model"&&(!n.has(a.value)||/^Gemini 3\.7(?: |$)/.test(i?.label??""))&&(t.defaultOverrideModelConfig=void 0),e}'
+$geminiClearTail = 'const n=new Set(t.clientModelConfigs.map(a=>a.modelOrAlias?.choice).filter(a=>a?.case==="model").map(a=>a.value)),a=t.defaultOverrideModelConfig?.modelOrAlias?.choice,i=t.clientModelConfigs.find(s=>s?.label==="Gemini 3.7 Flash (High)");return !a&&i&&(t.defaultOverrideModelConfig=i),a?.case==="model"&&!n.has(a.value)&&(t.defaultOverrideModelConfig=i??void 0),e}'
     if ((Get-ExactCount -Content $result -Value $guardTail) -eq 1) {
         return Replace-ExactOnce -Content $result -Before $guardTail -After $safeTail -Name '旧启动默认逻辑迁移'
     }
@@ -502,7 +508,7 @@ function Test-Gemini37DefaultOverrideSafety {
     (Get-ExactCount -Content $Content -Value '_agStableStartupLabels') -eq 0 -and
         (Get-ExactCount -Content $Content -Value 'map(a=>`${a.case}:${a.value}`)') -eq 1 -and
         (Get-ExactCount -Content $Content -Value '/^Gemini 3\.7(?: |$)/.test(i?.label??"")') -eq 0 -and
-        (Get-ExactCount -Content $Content -Value 't.defaultOverrideModelConfig=i') -eq 0
+        (Get-ExactCount -Content $Content -Value 't.defaultOverrideModelConfig=i') -le 1
 }
 
 function Test-LegacyGemini37MainContent {
@@ -774,11 +780,21 @@ function Test-Gemini37WorkbenchContent {
     $Content.StartsWith($script:Gemini37WorkbenchPrefix, [StringComparison]::Ordinal) -and
         (Get-ExactCount $Content $script:Gemini37WorkbenchPrefix) -eq 1 -and
         (Get-ExactCount $Content '_agCompatibilityMode=') -eq 1 -and
-        (Get-ExactCount $Content $script:Gemini36QbReplacement) -eq 1 -and
-        (Get-ExactCount $Content $script:Gemini36DbReplacement) -eq 1 -and
+        (Get-ExactCount $Content $script:Gemini37QbReplacement) -eq 1 -and
+        (Get-ExactCount $Content $script:Gemini37DbReplacement) -eq 1 -and
         (Get-ExactCount $Content $script:Gemini36QbAnchor) -eq 0 -and
         (Get-ExactCount $Content $script:Gemini36DbAnchor) -eq 0 -and
         (Get-ExactCount $Content $script:Gemini36RequestedModelAnchor) -eq 1
+}
+
+function Test-PreviousGemini37WorkbenchContent {
+    param([Parameter(Mandatory)][string]$Content)
+
+    $Content.StartsWith($script:PreviousGemini37WorkbenchPrefix, [StringComparison]::Ordinal) -and
+        (Get-ExactCount $Content $script:PreviousGemini37WorkbenchPrefix) -eq 1 -and
+        (Get-ExactCount $Content '_agCompatibilityMode=') -eq 1 -and
+        (Get-ExactCount $Content $script:Gemini36QbReplacement) -eq 1 -and
+        (Get-ExactCount $Content $script:Gemini36DbReplacement) -eq 1
 }
 
 function Test-LegacyGemini37WorkbenchContent {
@@ -804,8 +820,13 @@ function ConvertFrom-Gemini37WorkbenchContent {
 
     if (Test-Gemini37WorkbenchContent -Content $Content) {
         $stable = $Content.Substring($script:Gemini37WorkbenchPrefix.Length)
-        $stable = Replace-ExactOnce $stable $script:Gemini36QbReplacement $script:Gemini36QbAnchor 'Gemini 3.7/3.6 qb 回退'
-        return Replace-ExactOnce $stable $script:Gemini36DbReplacement $script:Gemini36DbAnchor 'Gemini 3.7/3.6 Db 回退'
+        $stable = Replace-ExactOnce $stable $script:Gemini37QbReplacement $script:Gemini36QbAnchor 'Gemini 3.7/3.6 qb 回退'
+        return Replace-ExactOnce $stable $script:Gemini37DbReplacement $script:Gemini36DbAnchor 'Gemini 3.7/3.6 Db 回退'
+    }
+    if (Test-PreviousGemini37WorkbenchContent -Content $Content) {
+        $stable = $Content.Substring($script:PreviousGemini37WorkbenchPrefix.Length)
+        $stable = Replace-ExactOnce $stable $script:Gemini36QbReplacement $script:Gemini36QbAnchor '上一版 Gemini 3.7/3.6 qb 回退'
+        return Replace-ExactOnce $stable $script:Gemini36DbReplacement $script:Gemini36DbAnchor '上一版 Gemini 3.7/3.6 Db 回退'
     }
     if (-not (Test-LegacyGemini37WorkbenchContent -Content $Content)) {
         throw 'Gemini 3.7 workbench 结构不完整，拒绝回退。'
@@ -826,7 +847,7 @@ function ConvertTo-Gemini37WorkbenchContent {
     param([Parameter(Mandatory)][string]$Content)
 
     if (Test-Gemini37WorkbenchContent -Content $Content) { return $Content }
-    if (Test-LegacyGemini37WorkbenchContent -Content $Content) {
+    if ((Test-PreviousGemini37WorkbenchContent -Content $Content) -or (Test-LegacyGemini37WorkbenchContent -Content $Content)) {
         $Content = ConvertFrom-Gemini37WorkbenchContent -Content $Content
     }
     if ((Get-ExactCount $Content '_agCompatibilityMode=') -gt 0) {
@@ -835,8 +856,8 @@ function ConvertTo-Gemini37WorkbenchContent {
     $isStable = (Test-StableWorkbenchContent -Content $Content -Adapter 'legacy-http-v1') -or
         (Test-StableWorkbenchContent -Content $Content -Adapter 'catalog-dual-transport-v3')
     if (-not $isStable) { throw 'Gemini 3.7 目标 Workbench 必须来自已验证 Stable 结构。' }
-    $result = Replace-ExactOnce $Content $script:Gemini36QbAnchor $script:Gemini36QbReplacement 'Gemini 3.7/3.6 qb'
-    $result = Replace-ExactOnce $result $script:Gemini36DbAnchor $script:Gemini36DbReplacement 'Gemini 3.7/3.6 Db'
+    $result = Replace-ExactOnce $Content $script:Gemini36QbAnchor $script:Gemini37QbReplacement 'Gemini 3.7/3.6 qb'
+    $result = Replace-ExactOnce $result $script:Gemini36DbAnchor $script:Gemini37DbReplacement 'Gemini 3.7/3.6 Db'
     $result = $script:Gemini37WorkbenchPrefix + $result
     if (-not (Test-Gemini37WorkbenchContent -Content $result)) { throw 'Gemini 3.7/3.6 workbench 补丁后结构校验失败。' }
     $result
@@ -855,6 +876,7 @@ function Get-Gemini37ContentGeneration {
         return $null
     }
     if (Test-Gemini37WorkbenchContent -Content $Content) { return 'Current' }
+    if (Test-PreviousGemini37WorkbenchContent -Content $Content) { return 'Legacy' }
     if (Test-LegacyGemini37WorkbenchContent -Content $Content) { return 'Legacy' }
     $null
 }
@@ -960,6 +982,7 @@ function ConvertTo-StableWorkbenchContent {
     )
 
     if ((Test-Gemini37WorkbenchContent -Content $Content) -or
+        (Test-PreviousGemini37WorkbenchContent -Content $Content) -or
         (Test-LegacyGemini37WorkbenchContent -Content $Content) -or
         $Content.StartsWith($script:LegacyGemini37WorkbenchPrefix, [StringComparison]::Ordinal)) {
         $Content = ConvertFrom-Gemini37WorkbenchContent -Content $Content
@@ -1046,7 +1069,8 @@ function Test-JavaScriptSyntax {
 
     $node = Get-Command node -ErrorAction SilentlyContinue
     if ($null -eq $node) { throw '未找到 Node.js，无法执行候选 JavaScript 语法检查。' }
-    $temporary = Join-Path ([IO.Path]::GetTempPath()) ("AntigravityCompat-$([guid]::NewGuid().ToString('N')).js")
+    $extension = if ($Content -match '(?m)(^|\s)(import|export)(?:\s|\{)') { '.mjs' } else { '.js' }
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ("AntigravityCompat-$([guid]::NewGuid().ToString('N'))$extension")
     try {
         [IO.File]::WriteAllText($temporary, $Content, [Text.UTF8Encoding]::new($false))
         $output = & $node.Source --check $temporary 2>&1
@@ -1088,14 +1112,34 @@ function Assert-InstallLayout {
     }
 }
 
+function Get-ProcessPathSnapshot {
+    $paths = @{}
+    try {
+        foreach ($item in @(Get-CimInstance Win32_Process -Filter "Name='Antigravity.exe' OR Name='language_server_windows_x64.exe' OR Name='language_server_windows.exe'" -ErrorAction Stop)) {
+            if (-not [string]::IsNullOrWhiteSpace($item.ExecutablePath)) { $paths[[int]$item.ProcessId] = $item.ExecutablePath }
+        }
+    } catch { }
+    $paths
+}
+
+function Get-ComparableProcessPath {
+    param([Parameter(Mandatory)]$Process, [Parameter(Mandatory)][hashtable]$Snapshot)
+    $path = try { $Process.Path } catch { $null }
+    if ([string]::IsNullOrWhiteSpace($path)) { $path = $Snapshot[[int]$Process.Id] }
+    if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+    [IO.Path]::GetFullPath($path)
+}
+
 function Assert-NoAntigravityProcesses {
     param([string]$InstallRoot)
 
     $names = @('Antigravity', 'language_server_windows_x64', 'language_server_windows')
     $root = if ([string]::IsNullOrWhiteSpace($InstallRoot)) { $null } else { [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\', '/') }
+    $snapshot = Get-ProcessPathSnapshot
     $running = @(Get-Process -Name $names -ErrorAction SilentlyContinue | Where-Object {
+        if (@($_.Threads).Count -eq 0) { return $false }
         if ($null -eq $root) { return $true }
-        $processPath = try { $_.Path } catch { $null }
+        $processPath = Get-ComparableProcessPath -Process $_ -Snapshot $snapshot
         if ([string]::IsNullOrWhiteSpace($processPath)) { return $true }
         $fullPath = [IO.Path]::GetFullPath($processPath)
         $fullPath.Equals((Join-Path $root 'Antigravity.exe'), [StringComparison]::OrdinalIgnoreCase) -or
@@ -1109,8 +1153,10 @@ function Get-ScopedAntigravityProcesses {
 
     $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\', '/')
     $names = @('Antigravity', 'language_server_windows_x64', 'language_server_windows')
+    $snapshot = Get-ProcessPathSnapshot
     @(Get-Process -Name $names -ErrorAction SilentlyContinue | Where-Object {
-        $processPath = try { $_.Path } catch { $null }
+        if (@($_.Threads).Count -eq 0) { return $false }
+        $processPath = Get-ComparableProcessPath -Process $_ -Snapshot $snapshot
         if ([string]::IsNullOrWhiteSpace($processPath)) { return $false }
         $fullPath = [IO.Path]::GetFullPath($processPath)
         $fullPath.Equals((Join-Path $root 'Antigravity.exe'), [StringComparison]::OrdinalIgnoreCase) -or

@@ -79,7 +79,7 @@ Assert-True (-not $geminiMain.Contains('Gemini 3.7 Flash (Low)')) '兼容名单�
 Assert-True (-not $geminiMain.Contains('Claude Sonnet 4.6 (thinking)')) '兼容名单不得混入大小写重复的 Claude 标签'
 Assert-True (-not $geminiMain.Contains('Claude Opus 4.6 (thinking)')) '兼容名单不得混入大小写重复的 Claude 标签'
 Assert-True ($geminiWorkbench.Contains('_agGemini36Ids=new Set([1264,1265])')) '组合模式必须复用已验证的 3.6 固定 ID 持久化'
-Assert-True (-not $geminiWorkbench.Contains('_agGemini37')) '3.7 Workbench 不得残留自定义状态或缓存逻辑'
+Assert-True ($geminiWorkbench.Contains('_agGemini37PreferenceKey')) '3.7 Workbench 必须持久化 alias 8 选择'
 Assert-True ($geminiWorkbench.Contains('requestedModel:this.m')) '发送链必须保留真实 requestedModel'
 Assert-True (Test-Gemini37MainContent -Content $geminiMain) '3.7 main 结构检查应通过'
 Assert-True (Test-Gemini37WorkbenchContent -Content $geminiWorkbench) '组合模式 Workbench 结构检查应通过'
