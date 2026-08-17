@@ -25,6 +25,9 @@
 4. 任何选择或持久化修改都必须覆盖以下重启矩阵：Claude -> 重启、Gemini 3.6 -> 重启、Gemini 3.7 -> 重启；每项均须恢复原选择并能首次直接发送成功。
 5. 兼容结构升级必须提供上一已发布版本的精确迁移路径；不得只验证全新安装，旧前缀、旧 replacement 和旧档案必须通过升级回归。
 6. 静态结构通过不能替代真实首次请求验证；Gemini 3.7 必须在未发送其他模型请求的冷启动会话中证明上游收到 `gemini-3.7-flash-high`。
+7. 进程阻断判定严禁仅依赖 `Get-Process.Path`；必须配合 `Win32_Process.ExecutablePath` 快照，且 0 线程/0 句柄的僵尸进程必须过滤，禁止误阻断安装。
+8. 补丁结构校验与回退必须同时兼容 Windows CRLF 与 Linux LF 换行，防止跨平台格式差异导致误报“补丁损坏”。
+9. 候选 JavaScript 语法校验必须自适应顶层 `import`/`export` 使用 `.mjs` 扩展名，严禁被 Node CommonJS `--check` 误判。
 
 ## 当前已知限制
 
