@@ -1,7 +1,7 @@
 "use strict";
 
 const SOURCE_MODEL = "gemini-2.5-pro";
-const TARGET_MODEL = "gemini-3.7-flash-high";
+const TARGET_MODEL = "gemini-3.8-flash-high";
 
 function rewriteRequestBody(body) {
   if (!Buffer.isBuffer(body)) return body;

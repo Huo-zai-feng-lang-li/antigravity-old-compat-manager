@@ -66,16 +66,14 @@ Assert-Equal $newGeminiMain (ConvertTo-Gemini37MainContent -Content $newGeminiMa
 foreach ($label in @(
     'Claude Sonnet 4.6 (Thinking)',
     'Claude Opus 4.6 (Thinking)',
-    'Gemini 3.6 Flash (High)',
-    'Gemini 3.6 Flash (Medium)',
-    'Gemini 3.7 Flash',
-    'Gemini 3.7 Flash (High)',
-    'Gemini 3.7 Flash (Medium)'
+    'Gemini 3.8 Flash (High)'
 )) {
     Assert-True ($geminiMain.Contains($label)) "兼容名单必须包含 $label"
 }
-Assert-True (-not $geminiMain.Contains('Gemini 3.6 Flash (Low)')) '兼容名单必须隐藏 Gemini 3.6 Low'
-Assert-True (-not $geminiMain.Contains('Gemini 3.7 Flash (Low)')) '兼容名单必须隐藏 Gemini 3.7 Low'
+Assert-True (-not $geminiMain.Contains('Gemini 3.6 Flash')) '兼容名单不得包含 Gemini 3.6 Flash'
+Assert-True (-not $geminiMain.Contains('Gemini 3.7 Flash')) '兼容名单必须隐藏 Gemini 3.7 Flash'
+Assert-True (-not $geminiMain.Contains('Gemini 3.8 Flash (Medium)')) '兼容名单必须隐藏 Gemini 3.8 Medium'
+Assert-True (-not $geminiMain.Contains('Gemini 3.8 Flash (Low)')) '兼容名单必须隐藏 Gemini 3.8 Low'
 Assert-True (-not $geminiMain.Contains('Claude Sonnet 4.6 (thinking)')) '兼容名单不得混入大小写重复的 Claude 标签'
 Assert-True (-not $geminiMain.Contains('Claude Opus 4.6 (thinking)')) '兼容名单不得混入大小写重复的 Claude 标签'
 Assert-True ($geminiWorkbench.Contains('_agGemini36Ids=new Set([1264,1265])')) '组合模式必须复用已验证的 3.6 固定 ID 持久化'
@@ -98,7 +96,7 @@ $legacyGeminiWorkbench = $legacyGeminiWorkbench.Replace($modelOptionAnchor, $leg
 Assert-Equal $stableWorkbench (ConvertTo-StableWorkbenchContent -Content $legacyGeminiWorkbench -Adapter 'legacy-http-v1') '旧 3.7 workbench 必须可精确回退'
 Assert-Equal $stableWorkbench (ConvertTo-StableWorkbenchContent -Content $legacyGeminiWorkbench -Adapter 'legacy-http-v1') '旧 3.7 workbench 必须迁移为原生 Stable'
 
-$currentAllowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.6 Flash (High)","Gemini 3.6 Flash (Medium)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
+$currentAllowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.8 Flash (High)"]'
 $legacyAllowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Claude Sonnet 4.6 (thinking)","Claude Opus 4.6 (thinking)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
 $legacyGeminiMain = $geminiMain.Replace($currentAllowlist, $legacyAllowlist, [StringComparison]::Ordinal)
 Assert-Equal 'Gemini37' (Get-InstalledCompatibilityMode -MainContent $legacyGeminiMain -WorkbenchContent $stableWorkbench) 'v6 主文件加原生 Workbench 必须识别为 Gemini37 迁移态'

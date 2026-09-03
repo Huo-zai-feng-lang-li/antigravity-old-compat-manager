@@ -46,7 +46,7 @@ foreach ($required in @(
     '官方公开推理模型',
     'Gemini 3.7 Flash',
     'https://antigravity.google/docs/models',
-    'Gemini 3.7 已通过兼容名单放行',
+    'Gemini 3.8 已通过兼容名单放行',
     '旧版 IDE 当前可见模型'
 )) {
     if (-not $report.Contains($required)) { throw "模型目录报告缺少：$required" }

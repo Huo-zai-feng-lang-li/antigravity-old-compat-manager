@@ -24,12 +24,28 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
 }
 if ([string]::IsNullOrWhiteSpace($InstallRoot)) { $InstallRoot = 'D:\Antigravity' }
 
+function Get-ModeDisplayName {
+    param([string]$Mode)
+    switch ($Mode) {
+        'Gemini37' { 'Gemini 3.8 兼容模式' }
+        'Gemini36' { 'Gemini 3.6 兼容模式' }
+        'Stable'   { '稳定模式（仅 Claude）' }
+        default    { $Mode }
+    }
+}
+
 function Format-Status {
     param($Status)
+    $targetName = Get-ModeDisplayName $Status.Mode
+    $installedName = Get-ModeDisplayName $Status.InstalledMode
+    $cleanMessage = $Status.Message
+    if ($cleanMessage.Contains('Gemini37')) {
+        $cleanMessage = $cleanMessage.Replace('Gemini37', 'Gemini 3.8')
+    }
     @(
-        "结果：$($Status.Message)"
-        "目标模式：$($Status.Mode)"
-        "当前模式：$($Status.InstalledMode)"
+        "结果：$cleanMessage"
+        "目标模式：$targetName ($($Status.Mode))"
+        "当前模式：$installedName ($($Status.InstalledMode))"
         "目录：$($Status.Root)"
         "main.js：$($Status.MainSha256)"
         "workbench：$($Status.WorkbenchSha256)"
@@ -150,7 +166,7 @@ function Get-ModelCatalogReport {
         "来源：$($official.source)"
         "查询时间：$(([datetime]$official.fetchedAt).ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss'))"
         ''
-        '说明：Gemini 3.7 已通过兼容名单放行；其他未知新模型仍不会自动进入 IDE 下拉框。'
+        '说明：Gemini 3.8 已通过兼容名单放行；其他未知新模型仍不会自动进入 IDE 下拉框。'
         ''
         '旧版 IDE 当前可见模型'
     )
@@ -196,7 +212,7 @@ function Show-StableModeGui {
         Checked = $CompatibilityMode -eq 'Stable'
     }
     $gemini37Radio = [Windows.Forms.RadioButton]@{
-        Left = 245; Top = 62; AutoSize = $true; Text = 'Gemini 3.7 兼容模式（保留 Claude）'
+        Left = 245; Top = 62; AutoSize = $true; Text = 'Gemini 3.8 兼容模式（保留 Claude）'
         Checked = $CompatibilityMode -eq 'Gemini37'
     }
     $diagnose = [Windows.Forms.Button]@{ Left = 18; Top = 98; Width = 120; Height = 36; Text = '检测状态' }

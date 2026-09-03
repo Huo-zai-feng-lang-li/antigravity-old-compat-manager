@@ -146,7 +146,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($geminiProfile.targetAgentProSha256) -or [string]::IsNullOrWhiteSpace($geminiProfile.targetAgentProCompatSha256)) { throw 'Gemini37 档案缺少 Agent Pro 路由哈希。' }
     $geminiTarget = $geminiProfile.targetMainSha256
     $main = [IO.File]::ReadAllText($paths.Main)
-    if (-not $main.Contains('Gemini 3.7 Flash') -or -not $main.Contains('Gemini 3.6 Flash')) { throw '组合名单未同时保留 3.7 与 3.6。' }
+    if (-not $main.Contains('Gemini 3.8 Flash (High)') -or $main.Contains('Gemini 3.7 Flash') -or $main.Contains('Gemini 3.6 Flash')) { throw '组合名单未正确放行 3.8 High 或未剔除 3.7/3.6。' }
     if (-not (Test-Gemini37AgentProSourceContent -Content ([IO.File]::ReadAllText($paths.AgentProSource)))) { throw 'Bootstrap 未部署 Agent Pro 真实 3.7 路由补丁。' }
     if (-not (Test-Path -LiteralPath $paths.AgentProCompat -PathType Leaf)) { throw 'Bootstrap 未部署 Agent Pro helper。' }
 

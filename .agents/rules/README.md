@@ -1,43 +1,42 @@
-# 项目强制规则
+# 项目架构契约与演进规则
 
-## 新模型兼容门禁
+> **核心目标**：保障反重力旧版 IDE 能稳定调用官方最新旗舰高推理模型（High / Thinking），改动必须一次性闭环。
 
-1. 官方模型目录只用于发现候选模型，不得自动加入旧版 IDE allowlist。
-2. 每个新模型和思考档位必须分别具备四项证据：
-   - 展示：CDP 可见且标签唯一，无重复项、空列表和 Low 残留。
-   - 选择：有独立、已验证的旧协议 model ID 或 alias；重启后仍选中正确模型。
-   - 路由：抓取本地代理请求，证明上游收到官方精确 model slug，不能只看 UI 标签。
-   - 稳定：真实发送成功，并完成至少 180 秒冷启动观察；`CodeWindow unresponsive` 必须为 0。
-3. 禁止猜测 model ID、alias 或 model slug。事实必须来自官方目录、旧 IDE 实际协议、请求体或服务端错误元数据。
-4. 两个模型不得共用同一个选择载体后同时展示。旧 UI 会按 choice 去重，且代理无法可靠区分目标模型。
-5. 若旧协议没有独立稳定载体，该模型保持“已发现、未兼容”，不得恢复动态 Workbench 状态机绕过门禁。
-6. 模型目录、选择持久化、上游路由是三个独立边界；任何修改都必须分别测试，禁止用其中一层的成功替代全链路证明。
-7. 上游改写只能在 Agent Pro 边界按精确值映射，未命中请求必须保持原字节；已有 Claude、Gemini 3.6 和其他请求必须有零回归测试。
-8. 新兼容版本必须升级 Bootstrap schema 和 patch version，并把 IDE、Agent Pro source、helper 纳入同一备份、哈希、自愈和失败回滚事务。
-9. 发布顺序固定为：官方取证 -> 旧协议取证 -> RED 回归 -> 最小实现 -> 临时安装事务测试 -> 全套回归 -> 真实部署 -> 每个模型真实响应 -> 180 秒冷启动。
-10. 完成标准必须记录可复验证据：模型标签、实际 model slug、HTTP 成功结果、目标哈希、测试计数和启动日志目录。
+---
 
-## 模型状态修改门禁
+## 1. 架构三层解耦与改动清单
 
-1. Gemini 3.6 与 Gemini 3.7 必须使用各自独立的 Workbench replacement；禁止为单一模式需求修改共享 replacement，避免污染其他模式。
-2. 模型目录、当前 choice、默认模型、最后选择持久化、上游路由是独立状态；model ID 与 alias 也必须分别处理和验证。
-3. 默认模型只允许在没有历史选择时兜底；已有 Claude、Gemini 3.6 或 Gemini 3.7 选择不得被启动逻辑覆盖。
-4. 任何选择或持久化修改都必须覆盖以下重启矩阵：Claude -> 重启、Gemini 3.6 -> 重启、Gemini 3.7 -> 重启；每项均须恢复原选择并能首次直接发送成功。
-5. 兼容结构升级必须提供上一已发布版本的精确迁移路径；不得只验证全新安装，旧前缀、旧 replacement 和旧档案必须通过升级回归。
-6. 静态结构通过不能替代真实首次请求验证；Gemini 3.7 必须在未发送其他模型请求的冷启动会话中证明上游收到 `gemini-3.7-flash-high`。
-7. 进程阻断判定严禁仅依赖 `Get-Process.Path`；必须配合 `Win32_Process.ExecutablePath` 快照，且 0 线程/0 句柄的僵尸进程必须过滤，禁止误阻断安装。
-8. 补丁结构校验与回退必须同时兼容 Windows CRLF 与 Linux LF 换行，防止跨平台格式差异导致误报“补丁损坏”。
-9. 候选 JavaScript 语法校验必须自适应顶层 `import`/`export` 使用 `.mjs` 扩展名，严禁被 Node CommonJS `--check` 误判。
+系统由三个严格隔离的边界组成，**模型升级必须三层同步修改，缺一不可**：
 
-## 当前已知限制
+| 层级 | 关键文件 | 改动要点 | 注意事项与陷阱 |
+| :--- | :--- | :--- | :--- |
+| **展示层 (UI)** | `scripts/StableMode.Core.psm1`<br>`Antigravity稳定模式.ps1` | 1. `$script:Gemini37Allowlist` 放行目标标签。<br>2. GUI 单选框与 `Format-Status` 显示名映射。 | **防去重冲突**：同选择载体只放 High 档位；UI 文本必须同步升级，严禁底层改了 UI 仍显示旧版本。 |
+| **选择层 (IDE)** | `scripts/StableMode.Core.psm1` (Workbench) | 维持静态注入，使用 `RECOMMENDED` (Alias 8) 作为载体。 | **防卡死禁令**：严禁在 Workbench 动态修改状态机或排序，否则导致 `CodeWindow` 渲染死循环崩溃。 |
+| **路由层 (Agent)** | `runtime/Gemini37AgentProxyCompat.cjs` | 更新 `TARGET_MODEL = "目标 slug"`。 | **特征靶子契约**：仅将旧协议生成的占位符 `gemini-2.5-pro` 改写为目标模型；Claude 及其他请求原样透传。 |
 
-- Gemini 3.7 High 与 Medium 在旧协议中当前只有同一个已验证载体 `RECOMMENDED` alias 8。
-- 当前版本只发布 Gemini 3.7 High。Medium 会被 choice 去重，不得通过删除去重或恢复动态 Workbench 注入强行显示。
-- Medium 的解除条件：找到并验证独立载体，或增加不会触发渲染循环且能被代理可靠识别的静态旁路标记，并完成上述全部门禁。
+---
 
-## 3.8、3.9 等未来模型
+## 2. 选型战略与边界（用户核心偏好）
 
-- 先登记为“官方可见、兼容未验证”，默认不进入旧 IDE。
-- 为每个模型/档位建立显式映射：`显示标签 -> 旧协议选择载体 -> 上游 model slug`。
-- 映射中任一字段缺失或与已有模型冲突时，禁止发布该项；其他已验证模型继续可用。
-- 完整流程见 `docs/Gemini新模型兼容指南.md`。
+- **高推理唯一主力**：仅维护官方最新 **High / Thinking** 档位。
+- **旧代彻底淘汰**：全面废弃 3.5 / 3.6 / 3.7，不为其做任何新增兼容与特化支持。
+- **IDE 列表极简纯净**：界面下拉框仅保留：
+  - `Claude Sonnet 4.6 (Thinking)`
+  - `Claude Opus 4.6 (Thinking)`
+  - `Gemini 3.8 Flash (High)`（后续随官方版本单点顺延）
+
+---
+
+## 3. 改动闭环操作检查清单 (Checklist)
+
+修改完毕后，按顺序执行以下步骤取证，无硬证据严禁声称“已解决”：
+
+1. **语法与静态校验**：
+   - 检查 CRLF / LF 兼容性，确保正则与字符串匹配支持多换行。
+2. **集成测试验证**：
+   - 运行 `pwsh -NoProfile -File tests/Test-CompatibilityInstallIntegration.ps1`（验证安装、幂等、回滚事务）。
+   - 运行 `node tests/Test-Gemini37AgentProxyCompat.cjs`（验证仅目标靶子改写，Claude 原样放行）。
+3. **真实端到端验证**：
+   - 运行诊断确认状态文本所见即所得：`pwsh -NoProfile -File Antigravity稳定模式.ps1 -Mode Diagnose -CompatibilityMode Gemini37`。
+   - 启动 IDE 发送真实请求，确认代理日志收到目标 `gemini-3.x-flash-high` 且响应成功。
+   - 确认启动 180 秒内无 `CodeWindow unresponsive` 事件。

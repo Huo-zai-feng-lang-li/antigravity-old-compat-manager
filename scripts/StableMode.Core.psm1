@@ -21,8 +21,10 @@ $script:Gemini36DbAnchor = 'async Db(){const e=await this.db.subscribe("uss-mode
 $script:Gemini36DbReplacement = 'async Db(){const e=await this.db.subscribe("uss-modelPreferences");this.D(Ri(i=>{const n=e.read(i),s=_agReadGemini36()??Hku(n);this.setSelectedModel(hs(RGl,{choice:{case:"model",value:s}}),void 0,!1)}))}'
 $script:Gemini36ModelEncoderAnchor = 'function mUc(t){let e=Hi(GMt);return t?.modelAlias?e.choice={case:"alias",value:t.modelAlias}:t?.value&&(e.choice={case:"model",value:t.value}),e}'
 $script:Gemini36RequestedModelAnchor = 'requestedModel:this.m,customModelInfoOverride:this.n'
-$script:Gemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.6 Flash (High)","Gemini 3.6 Flash (Medium)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
-$script:PreviousGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
+$script:Gemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.8 Flash (High)"]'
+$script:PreviousGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.7 Flash (High)","Gemini 3.8 Flash (High)"]'
+$script:OlderGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.6 Flash (High)","Gemini 3.6 Flash (Medium)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)","Gemini 3.8 Flash","Gemini 3.8 Flash (High)","Gemini 3.8 Flash (Medium)"]'
+$script:OldestGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Gemini 3.6 Flash (High)","Gemini 3.6 Flash (Medium)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
 $script:LegacyGemini37Allowlist = '["Claude Sonnet 4.6 (Thinking)","Claude Opus 4.6 (Thinking)","Claude Sonnet 4.6 (thinking)","Claude Opus 4.6 (thinking)","Gemini 3.7 Flash","Gemini 3.7 Flash (High)","Gemini 3.7 Flash (Medium)"]'
 $script:Gemini37MainMarker = 'const _agCompatibilityMode="gemini37-v1";'
 $script:Gemini37WorkbenchPrefix = 'const _agCompatibilityMode="gemini37-combined-v2",_agGemini36Ids=new Set([1264,1265]),_agGemini36PreferenceKey="antigravity.compat.gemini36.preference.v1",_agGemini37PreferenceKey="antigravity.compat.gemini37.preference.v1";function _agWriteGemini36(e){try{localStorage.setItem(_agGemini36PreferenceKey,String(e))}catch{}}function _agClearGemini36(){try{localStorage.removeItem(_agGemini36PreferenceKey)}catch{}}function _agReadGemini36(){try{const e=Number(localStorage.getItem(_agGemini36PreferenceKey));return Number.isInteger(e)&&_agGemini36Ids.has(e)?e:void 0}catch{return void 0}}function _agWriteGemini37(){try{localStorage.setItem(_agGemini37PreferenceKey,"8")}catch{}}function _agClearGemini37(){try{localStorage.removeItem(_agGemini37PreferenceKey)}catch{}}function _agReadGemini37(){try{return localStorage.getItem(_agGemini37PreferenceKey)==="8"}catch{return false}}'
@@ -53,7 +55,7 @@ $script:Gemini37AgentProHook = @'
     if (kind === "GEMINI_REST_CHAT") {
       const _agGemini37Body = _agGemini37Compat.rewriteRequestBody(_eaBody);
       if (_agGemini37Body !== _eaBody) {
-        _eaDiag(`#${rid} GEMINI37-MODEL-REWRITE: gemini-2.5-pro -> gemini-3.7-flash-high`);
+        _eaDiag(`#${rid} GEMINI37-MODEL-REWRITE: gemini-2.5-pro -> gemini-3.8-flash-high`);
         _eaBody = _agGemini37Body;
       }
     }
@@ -199,14 +201,33 @@ function ConvertTo-Gemini37AgentProSourceContent {
     param([Parameter(Mandatory)][string]$Content)
 
     if (Test-Gemini37AgentProSourceContent -Content $Content) { return $Content }
-    if ($Content.Contains($script:Gemini37AgentProHelperName) -or $Content.Contains('GEMINI37-MODEL-REWRITE')) {
-        throw 'Agent Pro source.js 含不完整的 Gemini 3.7 路由补丁，拒绝覆盖。'
+
+    # 如果存在旧版本的 3.7 路由日志特征，先无损平滑回退，再打入 3.8 路由
+    $legacy37Hook = @'
+    if (kind === "GEMINI_REST_CHAT") {
+      const _agGemini37Body = _agGemini37Compat.rewriteRequestBody(_eaBody);
+      if (_agGemini37Body !== _eaBody) {
+        _eaDiag(`#${rid} GEMINI37-MODEL-REWRITE: gemini-2.5-pro -> gemini-3.7-flash-high`);
+        _eaBody = _agGemini37Body;
+      }
+    }
+'@.TrimEnd("`r", "`n")
+
+    $workingContent = $Content
+    $normalizedWorking = $workingContent.Replace("`r`n", "`n")
+    $normalizedLegacyHook = $legacy37Hook.Replace("`r`n", "`n")
+    if ($normalizedWorking.Contains($normalizedLegacyHook)) {
+        $workingContent = ConvertTo-StableAgentProSourceContent -Content $workingContent
+    }
+
+    if ($workingContent.Contains($script:Gemini37AgentProHelperName) -or $workingContent.Contains('GEMINI37-MODEL-REWRITE')) {
+        throw 'Agent Pro source.js 含不完整的 Gemini 路由补丁，拒绝覆盖。'
     }
     $newLine = [Environment]::NewLine
-    $result = Replace-ExactOnce $Content 'const net = require("net");' ($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");') 'Agent Pro helper 引用'
+    $result = Replace-ExactOnce $workingContent 'const net = require("net");' ($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");') 'Agent Pro helper 引用'
     $hook = $script:Gemini37AgentProHook.TrimEnd("`r", "`n")
-    $result = Replace-ExactOnce $result '    _eaHotReload();' ($hook + $newLine + '    _eaHotReload();') 'Gemini 3.7 请求模型改写'
-    if (-not (Test-Gemini37AgentProSourceContent -Content $result)) { throw 'Agent Pro Gemini 3.7 路由补丁后结构校验失败。' }
+    $result = Replace-ExactOnce $result '    _eaHotReload();' ($hook + $newLine + '    _eaHotReload();') 'Gemini 3.8 请求模型改写'
+    if (-not (Test-Gemini37AgentProSourceContent -Content $result)) { throw 'Agent Pro Gemini 3.8 路由补丁后结构校验失败。' }
     $result
 }
 
@@ -215,14 +236,42 @@ function ConvertTo-StableAgentProSourceContent {
 
     $hasPatch = $Content.Contains($script:Gemini37AgentProHelperName) -or $Content.Contains('GEMINI37-MODEL-REWRITE')
     if (-not $hasPatch) { return $Content }
-    if (-not (Test-Gemini37AgentProSourceContent -Content $Content)) {
-        throw 'Agent Pro source.js 的 Gemini 3.7 路由补丁结构不完整，拒绝回退。'
+
+    $legacy37Hook = @'
+    if (kind === "GEMINI_REST_CHAT") {
+      const _agGemini37Body = _agGemini37Compat.rewriteRequestBody(_eaBody);
+      if (_agGemini37Body !== _eaBody) {
+        _eaDiag(`#${rid} GEMINI37-MODEL-REWRITE: gemini-2.5-pro -> gemini-3.7-flash-high`);
+        _eaBody = _agGemini37Body;
+      }
     }
+'@.TrimEnd("`r", "`n")
+
+    $currentHook = $script:Gemini37AgentProHook.TrimEnd("`r", "`n")
+
     $newLine = if ($Content.Contains($script:Gemini37AgentProRequire + "`r`n" + 'const net = require("net");')) { "`r`n" } else { "`n" }
-    $hook = $script:Gemini37AgentProHook.TrimEnd("`r", "`n")
-    if (-not $Content.Contains($hook)) { $hook = $hook.Replace("`r`n", "`n") }
-    $stable = Replace-ExactOnce $Content ($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");') 'const net = require("net");' 'Agent Pro helper 引用回退'
-    Replace-ExactOnce $stable ($hook + $newLine + '    _eaHotReload();') '    _eaHotReload();' 'Gemini 3.7 请求模型改写回退'
+    
+    $stable = $Content
+    if ($stable.Contains($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");')) {
+        $stable = Replace-ExactOnce $stable ($script:Gemini37AgentProRequire + $newLine + 'const net = require("net");') 'const net = require("net");' 'Agent Pro helper 引用回退'
+    }
+
+    # 尝试匹配当前 3.8 hook 或旧 3.7 hook
+    $matchedHook = $null
+    if ($stable.Contains($currentHook)) { $matchedHook = $currentHook }
+    elseif ($stable.Contains($currentHook.Replace("`r`n", "`n"))) { $matchedHook = $currentHook.Replace("`r`n", "`n") }
+    elseif ($stable.Contains($legacy37Hook)) { $matchedHook = $legacy37Hook }
+    elseif ($stable.Contains($legacy37Hook.Replace("`r`n", "`n"))) { $matchedHook = $legacy37Hook.Replace("`r`n", "`n") }
+
+    if ($null -ne $matchedHook) {
+        $hookWithNewline = if ($stable.Contains($matchedHook + "`r`n" + '    _eaHotReload();')) { $matchedHook + "`r`n" + '    _eaHotReload();' } else { $matchedHook + "`n" + '    _eaHotReload();' }
+        $stable = Replace-ExactOnce $stable $hookWithNewline '    _eaHotReload();' 'Gemini 请求模型改写回退'
+    }
+
+    if ($stable.Contains($script:Gemini37AgentProHelperName) -or $stable.Contains('GEMINI37-MODEL-REWRITE')) {
+        throw 'Agent Pro source.js 的 Gemini 路由补丁结构不完整，拒绝回退。'
+    }
+    $stable
 }
 
 function Test-StableCatalogFilterContent {
@@ -473,7 +522,7 @@ function ConvertTo-Gemini36MainContent {
 function Test-Gemini37MainContent {
     param([Parameter(Mandatory)][string]$Content)
 
-    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:PreviousGemini37Allowlist, $script:LegacyGemini37Allowlist)
+    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:PreviousGemini37Allowlist, $script:OlderGemini37Allowlist, $script:OldestGemini37Allowlist, $script:LegacyGemini37Allowlist)
     if (-not $Content.StartsWith($script:Gemini37MainMarker, [StringComparison]::Ordinal) -or
         (Get-ExactCount $Content $script:Gemini37MainMarker) -ne 1 -or
         (Get-ExactCount $Content '_agCompatibilityMode=') -ne 1 -or
@@ -492,10 +541,30 @@ function Test-Gemini37MainContent {
 function Test-PreviousGemini37MainContent {
     param([Parameter(Mandatory)][string]$Content)
 
-    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:LegacyGemini37Allowlist)
+    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:OlderGemini37Allowlist, $script:OldestGemini37Allowlist, $script:LegacyGemini37Allowlist)
     $Content.StartsWith($script:Gemini37MainMarker, [StringComparison]::Ordinal) -and
         (Get-ExactCount $Content $script:Gemini37MainMarker) -eq 1 -and
         (Get-ExactCount $Content $script:PreviousGemini37Allowlist) -eq 1 -and
+        -not (Test-ContainsAnyExactValue -Content $Content -Values $forbidden)
+}
+
+function Test-OlderGemini37MainContent {
+    param([Parameter(Mandatory)][string]$Content)
+
+    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:PreviousGemini37Allowlist, $script:OldestGemini37Allowlist, $script:LegacyGemini37Allowlist)
+    $Content.StartsWith($script:Gemini37MainMarker, [StringComparison]::Ordinal) -and
+        (Get-ExactCount $Content $script:Gemini37MainMarker) -eq 1 -and
+        (Get-ExactCount $Content $script:OlderGemini37Allowlist) -eq 1 -and
+        -not (Test-ContainsAnyExactValue -Content $Content -Values $forbidden)
+}
+
+function Test-OldestGemini37MainContent {
+    param([Parameter(Mandatory)][string]$Content)
+
+    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:PreviousGemini37Allowlist, $script:OlderGemini37Allowlist, $script:LegacyGemini37Allowlist)
+    $Content.StartsWith($script:Gemini37MainMarker, [StringComparison]::Ordinal) -and
+        (Get-ExactCount $Content $script:Gemini37MainMarker) -eq 1 -and
+        (Get-ExactCount $Content $script:OldestGemini37Allowlist) -eq 1 -and
         -not (Test-ContainsAnyExactValue -Content $Content -Values $forbidden)
 }
 
@@ -513,7 +582,7 @@ function Test-Gemini37DefaultOverrideSafety {
 
 function Test-LegacyGemini37MainContent {
     param([Parameter(Mandatory)][string]$Content)
-    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:PreviousGemini37Allowlist)
+    $forbidden = @($script:StableAllowlist, $script:LegacyStableAllowlist, $script:Gemini36Allowlist, $script:LegacyGemini36Allowlist, $script:Gemini37Allowlist, $script:PreviousGemini37Allowlist, $script:OlderGemini37Allowlist, $script:OldestGemini37Allowlist)
     $Content.StartsWith($script:Gemini37MainMarker, [StringComparison]::Ordinal) -and
         (Get-ExactCount $Content $script:Gemini37MainMarker) -eq 1 -and
         (Get-ExactCount $Content $script:LegacyGemini37Allowlist) -eq 1 -and
@@ -527,6 +596,10 @@ function ConvertFrom-Gemini37MainContent {
         $script:Gemini37Allowlist
     } elseif (Test-PreviousGemini37MainContent -Content $Content) {
         $script:PreviousGemini37Allowlist
+    } elseif (Test-OlderGemini37MainContent -Content $Content) {
+        $script:OlderGemini37Allowlist
+    } elseif (Test-OldestGemini37MainContent -Content $Content) {
+        $script:OldestGemini37Allowlist
     } elseif (Test-LegacyGemini37MainContent -Content $Content) {
         $script:LegacyGemini37Allowlist
     } else {
@@ -546,7 +619,7 @@ function ConvertTo-Gemini37MainContent {
     param([Parameter(Mandatory)][string]$Content)
 
     if (Test-Gemini37MainContent -Content $Content) { return $Content }
-    if ((Test-PreviousGemini37MainContent -Content $Content) -or (Test-LegacyGemini37MainContent -Content $Content)) {
+    if ((Test-PreviousGemini37MainContent -Content $Content) -or (Test-OlderGemini37MainContent -Content $Content) -or (Test-OldestGemini37MainContent -Content $Content) -or (Test-LegacyGemini37MainContent -Content $Content)) {
         $Content = ConvertFrom-Gemini37MainContent -Content $Content
         $result = $script:Gemini37MainMarker + (Replace-ExactOnce $Content $script:StableAllowlist $script:Gemini37Allowlist 'Gemini 3.7 名单去重迁移')
         if (-not (Test-Gemini37MainContent -Content $result)) { throw 'Gemini 3.7 旧名单迁移校验失败。' }
@@ -569,6 +642,8 @@ function ConvertTo-StableMainContent {
 
     if ((Test-Gemini37MainContent -Content $Content) -or
         (Test-PreviousGemini37MainContent -Content $Content) -or
+        (Test-OlderGemini37MainContent -Content $Content) -or
+        (Test-OldestGemini37MainContent -Content $Content) -or
         (Test-LegacyGemini37MainContent -Content $Content)) {
         return ConvertFrom-Gemini37MainContent -Content $Content
     }
@@ -872,6 +947,8 @@ function Get-Gemini37ContentGeneration {
     if ($Kind -eq 'Main') {
         if (Test-Gemini37MainContent -Content $Content) { return 'Current' }
         if (Test-PreviousGemini37MainContent -Content $Content) { return 'Legacy' }
+        if (Test-OlderGemini37MainContent -Content $Content) { return 'Legacy' }
+        if (Test-OldestGemini37MainContent -Content $Content) { return 'Legacy' }
         if (Test-LegacyGemini37MainContent -Content $Content) { return 'Legacy' }
         return $null
     }

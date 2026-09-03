@@ -27,7 +27,7 @@ foreach ($required in @(
     if (-not $installerSource.Contains($required)) { throw "安装器缺少双模式契约：$required" }
 }
 foreach ($required in @(
-    "AutoSize = `$true; Text = 'Gemini 3.7 兼容模式（保留 Claude）'",
+    "AutoSize = `$true; Text = 'Gemini 3.8 兼容模式（保留 Claude）'",
     '稳定模式（仅 Claude）',
     'Get-SelectedCompatibilityMode',
     'Invoke-ApplySelectedMode',
@@ -40,7 +40,7 @@ foreach ($required in @(
     'OfficialModelCatalog.mjs',
     '官方公开推理模型',
     '旧版 IDE 当前可见模型',
-    'Gemini 3.7 已通过兼容名单放行'
+    'Gemini 3.8 已通过兼容名单放行'
 )) {
     if (-not $guiSource.Contains($required)) { throw "可视管理器缺少双模式入口：$required" }
 }

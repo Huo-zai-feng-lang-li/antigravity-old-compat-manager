@@ -8,7 +8,7 @@ const {
 } = require("../runtime/Gemini37AgentProxyCompat.cjs");
 
 assert.equal(SOURCE_MODEL, "gemini-2.5-pro");
-assert.equal(TARGET_MODEL, "gemini-3.7-flash-high");
+assert.equal(TARGET_MODEL, "gemini-3.8-flash-high");
 
 const source = Buffer.from(
   JSON.stringify({
@@ -28,6 +28,7 @@ assert.deepEqual(JSON.parse(rewritten.toString("utf8")), {
 for (const model of [
   "gemini-3.6-flash-high",
   "gemini-3.6-flash-medium",
+  "gemini-3.7-flash-high",
   "claude-sonnet-4-6-thinking",
   TARGET_MODEL,
 ]) {

@@ -162,8 +162,8 @@ async function handler(req, res) {
     $combinedMain = [IO.File]::ReadAllText((Join-Path $installRoot $mainRelative))
     $combinedWorkbench = [IO.File]::ReadAllText((Join-Path $installRoot $workbenchRelative))
     $patchedAgentPro = [IO.File]::ReadAllText($agentProSourcePath)
-    if (-not $combinedMain.Contains('Gemini 3.7 Flash') -or -not $combinedMain.Contains('Gemini 3.6 Flash')) { throw '组合模式目录未同时保留 3.7 与 3.6。' }
-    if (-not $combinedWorkbench.Contains('_agGemini36Ids=new Set([1264,1265])') -or $combinedWorkbench.Contains('_agGemini37')) { throw '组合模式 Workbench 未使用固定 3.6 桥。' }
+    if (-not $combinedMain.Contains('Gemini 3.8 Flash (High)') -or $combinedMain.Contains('Gemini 3.7 Flash') -or $combinedMain.Contains('Gemini 3.6 Flash')) { throw '组合模式目录未正确放行 3.8 High 或未剔除 3.7/3.6。' }
+    if (-not $combinedWorkbench.Contains('_agGemini36Ids=new Set([1264,1265])') -or $combinedWorkbench.Contains('_agGemini37Ids')) { throw '组合模式 Workbench 未使用固定 3.6 桥。' }
     if (-not (Test-Gemini37AgentProSourceContent -Content $patchedAgentPro)) { throw 'Agent Pro 路由补丁未部署。' }
     if (-not (Test-Path -LiteralPath $agentProCompatPath -PathType Leaf)) { throw 'Agent Pro helper 未部署。' }
     $combinedStatus = Get-CompatibilityInstallStatus -InstallRoot $installRoot -Mode Gemini37 -AgentProSourcePath $agentProSourcePath
