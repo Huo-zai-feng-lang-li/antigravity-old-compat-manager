@@ -6,7 +6,7 @@ logs/
 profiles/
 
 # Local tooling state
-.codegraph/daemon.pid
+.codegraph/
 .serena/memories/
 
 # Build output
