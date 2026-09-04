@@ -116,7 +116,7 @@ function Find-AgentProSourcePath {
 
     $extensionsRoot = Join-Path $env:USERPROFILE '.antigravity\extensions'
     if (-not (Test-Path -LiteralPath $extensionsRoot -PathType Container)) { return $null }
-    $prefix = 'dao-agi.dao-proxy-pro-'
+    $prefix = 'zk-agent.dao-proxy-pro-'
     $candidates = foreach ($directory in Get-ChildItem -LiteralPath $extensionsRoot -Directory -Filter "$prefix*") {
         $source = Join-Path $directory.FullName 'vendor\bundled-origin\source.js'
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }

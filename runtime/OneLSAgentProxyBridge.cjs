@@ -5,7 +5,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 
-const AGENT_PRO_ID = "dao-agi.dao-proxy-pro";
+const AGENT_PRO_ID = "zk-agent.dao-proxy-pro";
 const DEFAULT_PORT = 8889;
 
 function readObsolete(extensionsRoot) {

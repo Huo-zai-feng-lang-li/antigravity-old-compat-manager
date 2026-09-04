@@ -2,27 +2,31 @@
 
 [GitHub 仓库](https://github.com/Huo-zai-feng-lang-li/antigravity-old-compat-manager)
 
+## 项目定位
+
+Antigravity IDE **兼容层管理器**，与 [Antigravity-Injection](https://github.com/Huo-zai-feng-lang-li/Antigravity-Injection) 插件（zk-agent.dao-proxy-pro）配合使用。
+
+- **本项目（兼容层）**：模型改写注入、Bridge 修补部署、模型列表过滤、版本伪装、认证时序修复、备份恢复
+- **插件（注入层）**：提示词注入、会话标题简体中文、文件上下文元信息、历史摘要剔除、模型解锁（全量模型目录）、流式响应结束保险、本地 HTTP 代理
+
+两个项目功能零重叠，必须同时运行才能获得完整功能。
+
 ## 当前可用交付
 
 - 推荐双击桌面的 `Antigravity 稳定版.lnk`；健康时无黑窗快速启动，IDE 更新后自动检查并在结构兼容时自愈。
-- 已完成 OneLS 重启发送、Agent Pro 系统提示词注入、桥文件事务部署、失败回滚与双冷启动验收。
-- 提供两种可持久模式：`Stable` 仅保留 Claude；`Gemini37` 保留 Claude、Gemini 3.6 High/Medium 和 Gemini 3.7 High。
-- 两种模式都排除 Low、Gemini 3.1、GPT 及未来未知模型，并共用重启发送修复、OneLS Agent Pro 桥、备份与失败回滚。
-- Gemini 3.7 Medium 因旧协议当前没有独立稳定的选择载体而暂未发布，避免重新引入模型重复、错误路由或 IDE 卡死。
-
-这是一个面向 Windows 的可视化兼容工具项目，用于安全管理 Antigravity 历史版本、模型目录兼容、备份恢复与运行验收。
+- 提供两种可持久模式：
+  - `Stable`：仅保留 Claude
+  - `Gemini37`：保留 Claude + Gemini 3.8 Flash (High)
+- 两种模式都排除 Low、GPT 及未来未知模型，防止未知模型 ID 导致 IDE 前端死循环卡死。
+- 模型改写：旧协议占位模型 `gemini-2.5-pro` → `gemini-3.8-flash-high`
+- 发布者统一为 `zk-agent`，与插件完全匹配。
 
 ## 项目导航
 
 - 使用说明：`README-稳定模式.md`
-- 新模型兼容规则：`docs/Gemini新模型兼容指南.md`
-- 阶段计划：`task_plan.md`
+- 项目规则：`.agents/rules/README.md`
+- 跨会话续接：`.agents/handoff.md`
 - 取证笔记：`notes.md`
-- 跨会话续接：`.agent/handoff.md`
-
-## 当前生产状态
-
-`D:\Antigravity` 当前已部署 schema 8 / v13 `Gemini37` 组合模式：Claude、Gemini 3.6、Gemini 3.7 High 已实测可正常响应；180 秒冷启动观察中最长无响应 0 秒，`CodeWindow unresponsive` 事件 0。可随时在管理器中切回 `Stable`。
 
 ## 获取项目
 

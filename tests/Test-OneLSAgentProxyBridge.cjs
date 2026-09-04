@@ -12,7 +12,7 @@ const {
   waitForAgentProxy,
 } = require("../runtime/OneLSAgentProxyBridge.cjs");
 
-const EXTENSION_ID = "dao-agi.dao-proxy-pro";
+const EXTENSION_ID = "zk-agent.dao-proxy-pro";
 
 function createFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "one-ls-bridge-"));
