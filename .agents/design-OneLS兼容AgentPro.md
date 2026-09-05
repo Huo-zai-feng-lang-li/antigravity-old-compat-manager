@@ -12,10 +12,10 @@
 3. **关闭 OneLS（拒绝）**：可以恢复旧注入链，但会重新暴露本地 HTTPS/TLS 与重启发送问题。
 
 ## 架构
-- `runtime/OneLSAgentProxyBridge.cjs`：纯 Node 模块，扫描 `~/.antigravity/extensions/zk-agent.dao-proxy-pro-*`，排除精确 `.obsolete` 版本，选最高语义版本；从 `~/.dao/origin-port.json` 和用户名 FNV 端口发现候选代理；验证 `/origin/ping` 的 `self_file` 必须指向选中的安装目录。
+- `runtime/OneLSAgentProxyBridge.cjs`：纯 Node 模块，扫描 `~/.antigravity/extensions/zk-agent.zk-proxy-pro-*`，排除精确 `.obsolete` 版本，选最高语义版本；从 `~/.dao/origin-port.json` 和用户名 FNV 端口发现候选代理；验证 `/origin/ping` 的 `self_file` 必须指向选中的安装目录。
 - `scripts/StableMode.Core.psm1`：为当前与已知历史 `main.js` 提供严格一次锚点转换，在共享 LS `spawn` 前等待桥接结果；结果有效才替换 `--cloud_code_endpoint`。未知结构 fail-closed。
 - `StableBootstrap.ps1` / 安装事务：把桥接模块原子部署到 `resources/app/dao-one-ls-agent-pro.cjs`，纳入状态检查、备份与恢复。
-- `windsurf-assistant/plugins/dao-proxy-pro/extension.js`：卸载侦测只接受 `.obsolete[current selfDir]===true`；旧版本记录不得触发当前版本清锚。
+- 插件侧 `Antigravity-Injection/plugins/zk-proxy-pro/extension.js`：卸载侦测只接受 `.obsolete[current selfDir]===true`；旧版本记录不得触发当前版本清锚。（设计时参考 windsurf-assistant 项目的同名机制）
 
 ## 数据流
 1. Antigravity 主进程准备启动共享 LS。
