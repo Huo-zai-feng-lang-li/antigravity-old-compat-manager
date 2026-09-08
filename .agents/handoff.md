@@ -1,8 +1,9 @@
-# 最新接续状态 (2026-09-05 12:53)
+# 最新接续状态 (2026-09-08)
 
 ## 核心进展
-- 与姊妹插件 **zk-agent.zk-proxy-pro@9.9.528** 完成命名统一与职责切分，最新 commit `d0a339c`，工作区干净、已 push。
-- 关键文件：`runtime/OneLSAgentProxyBridge.cjs`（AGENT_PRO_ID）、`scripts/StableMode.Core.psm1`（$prefix 与兼容模式核心）、`Antigravity稳定模式.ps1`（入口）。
+- 与姊妹插件 **zk-agent.zk-proxy-pro@9.9.529** 完成命名统一与职责切分。插件 v9.9.529 核心修复：Gemini 3.8 Flash Fast 版推理强度从 Low(thinkingBudget=1024) 提升至 High(thinkingBudget=-1 动态思考)，用户实测模型自报 high 推理。
+- 本项目同期修复：StableMode.Core.psm1 v13 检测逻辑兼容插件 9.9.528 内置的 Gemini 路由改写（source.js 原生 require `_ag-gemini37-compat.cjs` 并双参数调用 rewriteRequestBody），避免误判为"打了一半的补丁"而拒绝覆盖，第三轮部署 exit=0 成功。
+- 关键文件：`runtime/OneLSAgentProxyBridge.cjs`（AGENT_PRO_ID）、`scripts/StableMode.Core.psm1`（$prefix 与兼容模式核心 + v13 检测修复）、`Antigravity稳定模式.ps1`（入口）。
 
 ## 核心动机与背景 (Motivation & Background)
 - 本项目是**兼容层**，专门处理「改 IDE app 目录 / LS 启动时序」类问题；姊妹插件 Antigravity-Injection 是**注入层**，处理请求体改写。两者功能零重叠、互不影响。
