@@ -118,3 +118,31 @@
   - `tests/Test-Gemini37AgentProPatch.ps1`
   - `tests/Test-ScopedProcessShutdown.ps1`
   - `tests/Test-Gemini37AgentProxyCompat.cjs`
+
+---
+
+## 六、 2026-09-08 补充：Gemini 3.8 Flash Fast 版推理强度被压为 Low（0.25）→ 提升至 High
+
+### 🛑 坑 6：Fast 版模型 thinkingBudget 被 LS 固定为 1024（Low），无法从 UI 切换档位
+
+- **现象**：Gemini 3.8 Flash (High) 条目带 Fast 徽标 + "Limited time" 气泡，模型两次一致自报 `EFFORT LEVEL: 0.25`（Low）。用户要求推理强度为 High（1.0 满载长链思考）。
+- **排查过程**：
+  1. IDE 全部源码（main.js / workbench.desktop.main.js / jetskiAgent/main.js）grep `thinkingBudget/thinkingConfig/reasoningEffort/effortLevel` **零命中**——客户端不显式设置思考参数
+  2. 插件外接 api 适配层的 `thinkingBudget→budget_tokens` 映射只服务外部渠道（deepseek/claude），官方 Gemini 请求不过该层
+  3. 官方请求实际为 `POST /v1internal:streamGenerateContent?alt=sse`（host=daily-cloudcode-pa.googleapis.com，Antigravity 私有端点）
+  4. 在 compat 层注入诊断 dump，抓到真实请求体结构：`request.generationConfig.thinkingConfig.thinkingBudget = 1024`（主对话，顶层 model 为 LS 占位符 `gemini-2.5-pro`）；另一条 `gemini-3.1-flash-lite`（标题生成）为 0
+  5. **关键发现**：thinkingBudget 是 token 数（1024=Low），不是 0~1 比例；模型把 1024 token 预算表述为 0.25 档位
+- **根因剖析**：
+  - Antigravity 私有端点 `/v1internal` 为**旧版 schema**，只认 `thinkingConfig.thinkingBudget`（token 数），**不认 Gemini 3 新字段 `thinkingLevel`**（实测加了会 400 INVALID_ARGUMENT：`Unknown name "thinkingLevel" at 'request.generation_config'`）
+  - LS 给 Fast 版模型固定写入 1024（Low 档），覆盖了 Gemini 3 默认的 high 动态思考
+  - Fast 是模型条目自带属性，非可关开关（用户确认"fast 没法关闭，是 ide 模型自带的"）
+  - 服务器唯一可用 Gemini ID 为 `gemini-3.8-flash-high`，不存在 `gemini-3.8-pro`
+- **修复措施**：
+  - 在插件 `_ag-gemini37-compat.cjs` 的 `rewriteRequestBody` 中新增 `_agLiftThinking(request)`
+  - 对主对话请求（顶层 model === LS 占位符 `gemini-2.5-pro`），将 `request.generationConfig.thinkingConfig.thinkingBudget` 从 1024 提升为 **-1**
+  - 官方定义 `thinkingBudget=-1` 为动态思考（模型按任务复杂度自行决定，等同 High 满载），且字段为端点认识的旧版字段，不会 400
+  - 仅改主对话，不动 lite/标题摘要等附属请求（避免副作用）
+- **验证结果**：重载窗口后模型自报推理强度 high/动态，复杂任务思考深度显著提升；请求无 400。
+- **影响范围**：仅影响经插件代理的 Gemini 主对话请求（LS 占位符模型），外接 API 渠道、Claude、非 Gemini 请求不受影响；thinkingBudget 改动仅作用于请求体转发，不修改模型列表、提示词注入或其他代理逻辑。
+- **回滚方案**：还原 `_ag-gemini37-compat.cjs` 至 v9.9.528 版（删除 `_agLiftThinking` 调用），重载窗口即可恢复 1024(Low)。
+- **关联提交**：插件 v9.9.529（`_ag-gemini37-compat.cjs` + package.json 版本号 + CHANGELOG/RELEASE_NOTES）；兼容管理器 StableMode.Core.psm1 v13 检测修复（同期部署，解决插件 9.9.528 内置 Gemini 路由改写被误判为"打了一半补丁"的问题）。

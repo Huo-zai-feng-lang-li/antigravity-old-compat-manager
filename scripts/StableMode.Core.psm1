@@ -202,6 +202,17 @@ function ConvertTo-Gemini37AgentProSourceContent {
 
     if (Test-Gemini37AgentProSourceContent -Content $Content) { return $Content }
 
+    # Plugin v9.9.524+ bundles the Gemini route rewrite into its own source.js:
+    # source.js natively contains the _agGemini37Compat require and a rewriteRequestBody call,
+    # and does NOT contain the GEMINI37-MODEL-REWRITE diag marker (emitted only by our injected hook).
+    # Treat such files as already satisfied: return as-is, no re-injection,
+    # avoiding duplicate const declaration and avoiding overwrite of the plugin's own 2-arg compat.
+    if ($Content.Contains($script:Gemini37AgentProHelperName) -and
+        $Content.Contains('rewriteRequestBody') -and
+        -not $Content.Contains('GEMINI37-MODEL-REWRITE')) {
+        return $Content
+    }
+
     # 如果存在旧版本的 3.7 路由日志特征，先无损平滑回退，再打入 3.8 路由
     $legacy37Hook = @'
     if (kind === "GEMINI_REST_CHAT") {
@@ -233,6 +244,14 @@ function ConvertTo-Gemini37AgentProSourceContent {
 
 function ConvertTo-StableAgentProSourceContent {
     param([Parameter(Mandatory)][string]$Content)
+
+    # Plugin v9.9.524+ bundles the Gemini route rewrite into source.js; its native
+    # _agGemini37Compat require is not our patch and must NOT be stripped on rollback.
+    if ($Content.Contains($script:Gemini37AgentProHelperName) -and
+        $Content.Contains('rewriteRequestBody') -and
+        -not $Content.Contains('GEMINI37-MODEL-REWRITE')) {
+        return $Content
+    }
 
     $hasPatch = $Content.Contains($script:Gemini37AgentProHelperName) -or $Content.Contains('GEMINI37-MODEL-REWRITE')
     if (-not $hasPatch) { return $Content }
@@ -1571,10 +1590,13 @@ function Get-CompatibilityInstallStatus {
             $true
         } else {
             $agentProContent = [IO.File]::ReadAllText($files.AgentProSource)
+            $pluginBundled = $agentProContent.Contains($script:Gemini37AgentProHelperName) -and
+                $agentProContent.Contains('rewriteRequestBody') -and
+                -not $agentProContent.Contains('GEMINI37-MODEL-REWRITE')
             if ($Mode -eq 'Gemini37') {
-                Test-Gemini37AgentProSourceContent -Content $agentProContent
+                (Test-Gemini37AgentProSourceContent -Content $agentProContent) -or $pluginBundled
             } else {
-                -not ($agentProContent.Contains($script:Gemini37AgentProHelperName) -or $agentProContent.Contains('GEMINI37-MODEL-REWRITE'))
+                (-not ($agentProContent.Contains($script:Gemini37AgentProHelperName) -or $agentProContent.Contains('GEMINI37-MODEL-REWRITE'))) -or $pluginBundled
             }
         }
         $agentProCompatStructure = if ($null -eq $files.AgentProCompat) {
@@ -1732,8 +1754,12 @@ function Set-CompatibilityMode {
         ConvertTo-StableAgentProSourceContent -Content $agentProContent
     }
     $targetAgentProHash = if ($null -eq $targetAgentProContent) { $null } else { Get-StringSha256 $targetAgentProContent }
+    $pluginBundledRewrite = $null -ne $agentProContent -and
+        $agentProContent.Contains($script:Gemini37AgentProHelperName) -and
+        $agentProContent.Contains('rewriteRequestBody') -and
+        -not $agentProContent.Contains('GEMINI37-MODEL-REWRITE')
     $targetAgentProCompatHash = if ($Mode -eq 'Gemini37' -and $null -ne $files.AgentProCompat) {
-        Get-Sha256 $script:Gemini37AgentProHelperSourcePath
+        if ($pluginBundledRewrite) { Get-OptionalFileHash $files.AgentProCompat } else { Get-Sha256 $script:Gemini37AgentProHelperSourcePath }
     } else {
         $null
     }
@@ -1779,8 +1805,10 @@ function Set-CompatibilityMode {
         Copy-FileAtomic -Source $script:OneLsBridgeSourcePath -Destination $files.Bridge
         if ($null -ne $files.AgentProSource) {
             Write-Utf8Atomic $files.AgentProSource $targetAgentProContent
-            if ($Mode -eq 'Gemini37') {
+            if ($Mode -eq 'Gemini37' -and -not $pluginBundledRewrite) {
                 Copy-FileAtomic -Source $script:Gemini37AgentProHelperSourcePath -Destination $files.AgentProCompat
+            } elseif ($Mode -eq 'Gemini37') {
+                # Plugin bundles its own compat implementation (2-arg dynamic rewrite); keep it to avoid downgrade.
             } else {
                 Remove-Item -LiteralPath $files.AgentProCompat -Force -ErrorAction SilentlyContinue
             }
