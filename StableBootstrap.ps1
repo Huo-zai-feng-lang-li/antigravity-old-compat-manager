@@ -271,6 +271,62 @@ function New-StableShortcut {
     $shortcutPath
 }
 
+function Invoke-StableShortcutTakeover {
+    param([string]$IdeRoot, [string]$ProjectRoot, [string]$BackupRoot)
+    # 补丁成功后自动接管桌面/开始菜单里直连 Antigravity.exe 的原始快捷方式，
+    # 改写为走本项目 Launch-StableHidden.vbs 的兼容启动，避免用户误点直连 exe 触发证书过期崩溃。
+    # 同时修复指向旧项目路径 VBS 的断链快捷方式。原始 lnk 备份到 backups\shortcuts\<时间戳>\。
+    $vbsPath = Join-Path $ProjectRoot 'Launch-StableHidden.vbs'
+    if (-not (Test-Path -LiteralPath $vbsPath)) { return 0 }
+    $wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
+    $ideExe = Join-Path $IdeRoot 'Antigravity.exe'
+    $icon = "$ideExe,0"
+
+    $candidates = @(
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Antigravity.lnk'),
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Antigravity\Antigravity.lnk'),
+        'C:\Users\Public\Desktop\Antigravity.lnk',
+        'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Antigravity\Antigravity.lnk'
+    )
+
+    $shell = New-Object -ComObject WScript.Shell
+    $taken = 0
+    $stamp = Get-Date -Format 'yyyyMMddHHmmss'
+    $idx = 0
+    foreach ($lnkPath in $candidates) {
+        $idx++
+        if (-not (Test-Path -LiteralPath $lnkPath)) { continue }
+        try {
+            $lnk = $shell.CreateShortcut($lnkPath)
+            $target = [string]$lnk.TargetPath
+            $argsText = [string]$lnk.Arguments
+            # 已指向当前项目 VBS，无需重复接管
+            if ($target -ieq $wscript -and $argsText -like "*$vbsPath*") { continue }
+            # 只接管：直连 Antigravity.exe，或指向其他/旧 VBS 的断链兼容快捷方式
+            $isDirectExe = ([IO.Path]::GetFileName($target) -ieq 'Antigravity.exe')
+            $isStaleVbs = ($target -ieq $wscript -and $argsText -like '*.vbs*' -and -not ($argsText -like "*$vbsPath*"))
+            if (-not ($isDirectExe -or $isStaleVbs)) { continue }
+
+            # 备份原始快捷方式（可逆）
+            $bakDir = Join-Path $BackupRoot "shortcuts\$stamp"
+            if (-not (Test-Path -LiteralPath $bakDir)) { New-Item -ItemType Directory -Path $bakDir -Force | Out-Null }
+            Copy-Item -LiteralPath $lnkPath -Destination (Join-Path $bakDir ("$idx-" + [IO.Path]::GetFileName($lnkPath))) -Force
+
+            # 改写为兼容启动
+            $lnk.TargetPath = $wscript
+            $lnk.Arguments = "`"$vbsPath`""
+            $lnk.WorkingDirectory = $ProjectRoot
+            $lnk.IconLocation = $icon
+            $lnk.Save()
+            $taken++
+        } catch {
+            # 公共桌面/开始菜单可能无权限，跳过不阻塞主流程
+            Write-Warning "接管快捷方式失败（已跳过）: $lnkPath - $($_.Exception.Message)"
+        }
+    }
+    $taken
+}
+
 function Write-BootstrapDiagnostic {
     param([string]$Root, [string]$AgentProSource, $Pair, [string]$Mode, [string]$Message)
     New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
@@ -331,6 +387,8 @@ if ($CheckOnly) {
 }
 
 try {
+    # 自动接管桌面/开始菜单的原始直连快捷方式为兼容启动（只改系统 lnk，不动 IDE 文件，进程运行中也可执行）
+    $null = Invoke-StableShortcutTakeover -IdeRoot $resolvedRoot -ProjectRoot $projectRoot -BackupRoot $backupRoot
     $needsRepair = $null -eq $targetProfile
     if ($null -ne $targetProfile) {
         $needsRepair = -not (Test-BootstrapProductState -Root $resolvedRoot -Pair $pair)
