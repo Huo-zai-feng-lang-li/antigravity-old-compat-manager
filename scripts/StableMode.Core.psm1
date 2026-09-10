@@ -1108,9 +1108,18 @@ function ConvertTo-StableWorkbenchContent {
     $result
 }
 
+function ConvertTo-LfLineEndings {
+    param([Parameter(Mandatory)][string]$Content)
+    # 强制归一化为 LF：先 CRLF->LF，再单独 CR->LF。
+    # extension.js 是 webpack 单文件打包，换行符被文本编辑器转成 CRLF 会导致
+    # 内部锚点匹配错位、agentSessions 服务注册失败（点发送闪一下回弹）。
+    $Content -replace "`r`n", "`n" -replace "`r", "`n"
+}
+
 function Test-RestartSafeExtensionContent {
     param([Parameter(Mandatory)][string]$Content)
 
+    $Content = ConvertTo-LfLineEndings -Content $Content
     $early = [regex]::Matches($Content, $script:AuthEarlyPattern)
     $safe = [regex]::Matches($Content, $script:AuthSafePattern)
     $early.Count -eq 0 -and $safe.Count -eq 1
@@ -1119,6 +1128,7 @@ function Test-RestartSafeExtensionContent {
 function ConvertTo-RestartSafeExtensionContent {
     param([Parameter(Mandatory)][string]$Content)
 
+    $Content = ConvertTo-LfLineEndings -Content $Content
     if (Test-RestartSafeExtensionContent -Content $Content) { return $Content }
     $early = [regex]::Matches($Content, $script:AuthEarlyPattern)
     $ready = [regex]::Matches($Content, $script:AuthReadyPattern)
@@ -1135,7 +1145,8 @@ function ConvertTo-RestartSafeExtensionContent {
 }
 
 function Write-Utf8Atomic {
-    param([string]$Path, [string]$Content)
+    param([string]$Path, [string]$Content, [switch]$ForceLF)
+    if ($ForceLF) { $Content = ConvertTo-LfLineEndings -Content $Content }
     $temporary = "$Path.agcompat.tmp"
     [IO.File]::WriteAllText($temporary, $Content, [Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporary -Destination $Path -Force
@@ -1801,7 +1812,7 @@ function Set-CompatibilityMode {
     try {
         Write-Utf8Atomic $files.Main $main
         Write-Utf8Atomic $files.Workbench $workbench
-        Write-Utf8Atomic $files.Extension $extension
+        Write-Utf8Atomic $files.Extension $extension -ForceLF
         Copy-FileAtomic -Source $script:OneLsBridgeSourcePath -Destination $files.Bridge
         if ($null -ne $files.AgentProSource) {
             Write-Utf8Atomic $files.AgentProSource $targetAgentProContent

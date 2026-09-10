@@ -1,4 +1,13 @@
 root = true
 
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
 [*.cs]
 dotnet_diagnostic.CA1502.severity = warning
+
+[*.{ps1,psm1,cmd,bat}]
+end_of_line = crlf
