@@ -308,7 +308,9 @@ if ($selectedMode -eq 'Gemini37') {
     if ($workbenchText.Contains('_agGemini37')) { $targetProfile = $null }
 }
 $shortcutResult = if ($InstallShortcut) { New-StableShortcut $resolvedRoot $ShortcutPath } else { $null }
-$launchArguments = @('--remote-debugging-port=9000')
+# 本地语言服务器自签证书 cert.pem 有效期至 2026-09-05，过期后渲染进程 TLS 握手被拒。
+# --ignore-certificate-errors 覆盖 Chromium 渲染进程；NODE_TLS_REJECT_UNAUTHORIZED 覆盖 Node 扩展宿主。
+$launchArguments = @('--remote-debugging-port=9000', '--ignore-certificate-errors')
 
 if ($CheckOnly) {
     [pscustomobject]@{
@@ -352,6 +354,8 @@ try {
     Save-BootstrapSettings -Settings $bootstrapSettings -Root $resolvedRoot -SelectedMode $selectedMode
     if ($InstallShortcut -and $null -eq $shortcutResult) { New-StableShortcut $resolvedRoot $ShortcutPath | Out-Null }
     if (-not $NoLaunch) {
+        # Node 扩展宿主(extension.js)经 HTTP/2 连本地 LS，过期证书会致 exthost 35s 崩溃循环、对话框闪回。
+        $env:NODE_TLS_REJECT_UNAUTHORIZED = '0'
         Start-Process -FilePath (Join-Path $resolvedRoot 'Antigravity.exe') -ArgumentList $launchArguments
     }
     exit 0
