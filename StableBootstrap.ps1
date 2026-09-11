@@ -358,7 +358,7 @@ if ($selectedMode -eq 'Gemini37' -and [string]::IsNullOrWhiteSpace($resolvedAgen
 $pair = Get-HashPair $resolvedRoot $resolvedAgentProSource
 $profiles = Get-BootstrapProfiles
 $targetProfile = Find-TargetProfile $pair $profiles $selectedMode
-if ($selectedMode -eq 'Gemini37') {
+if ($selectedMode -eq 'Gemini37' -and $null -eq $targetProfile) {
     $workbenchPath = Join-Path $resolvedRoot 'resources\app\out\vs\workbench\workbench.desktop.main.js'
     $workbenchText = [IO.File]::ReadAllText($workbenchPath)
     if ($workbenchText.Contains('_agGemini37')) { $targetProfile = $null }
