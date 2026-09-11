@@ -1,30 +1,57 @@
-# 最新接续状态 (2026-09-08)
+# 最新接续状态 (2026-09-11 16:36)
 
 ## 核心进展
-- 与姊妹插件 **zk-agent.zk-proxy-pro@9.9.529** 完成命名统一与职责切分。插件 v9.9.529 核心修复：Gemini 3.8 Flash Fast 版推理强度从 Low(thinkingBudget=1024) 提升至 High(thinkingBudget=-1 动态思考)，用户实测模型自报 high 推理。
-- 本项目同期修复：StableMode.Core.psm1 v13 检测逻辑兼容插件 9.9.528 内置的 Gemini 路由改写（source.js 原生 require `_ag-gemini37-compat.cjs` 并双参数调用 rewriteRequestBody），避免误判为"打了一半的补丁"而拒绝覆盖，第三轮部署 exit=0 成功。
-- 关键文件：`runtime/OneLSAgentProxyBridge.cjs`（AGENT_PRO_ID）、`scripts/StableMode.Core.psm1`（$prefix 与兼容模式核心 + v13 检测修复）、`Antigravity稳定模式.ps1`（入口）。
+
+Antigravity IDE（基于 VS Code 的 AI IDE，安装路径 `D:\Antigravity`）四个阶段问题全部闭环：
+1. **E盘换行符故障**：`extension.js` 被编辑器 LF→CRLF 致 agentSessions 服务注册失败，回滚 LF 版恢复；给 compat + injection 两项目加四层换行符防护并提交推送。
+2. **D盘证书崩溃**：本地语言服务器自签证书 `cert.pem` 已于 2026-09-05 过期 → Node 端每秒报 certificate has expired → exthost 约35秒崩溃重启循环。修复：`NODE_TLS_REJECT_UNAUTHORIZED=0` + Chromium `--ignore-certificate-errors`。commit c21ba13。
+3. **快捷方式接管 + 重装文档**：桌面 `Antigravity.lnk` 直连 exe 会崩；新增 `Invoke-StableShortcutTakeover` 自动扫描4个位置改写为兼容启动（wscript→VBS→pwsh→StableBootstrap）。commit a33428d。重装流程文档交付到 `D:\Desktop\脚本\Antigravity重装到启动使用流程.md`。
+4. **启动慢性能优化（两轮，最新）**：桌面双击启动从 **20.8s 降到 3.7s**（共省17.1s）。
+   - 第一轮（a4557c7）：`Test-RestartSafeExtensionContent` 里 `AuthSafePattern`（含3个反向引用）对 2.9MB extension.js 用 `[regex]::Matches` 全扫描需 8.0-8.5s（灾难性回溯），改为 `[regex]::IsMatch` 仅 0.5s。启动 20.8s→7.6s。
+   - 第二轮（5662143）：StableBootstrap.ps1 第361行 Gemini37 模式下**无条件强制重打补丁**的 bug——只要 workbench.js 包含 `_agGemini37` 就把已匹配的 targetProfile 置 null，导致每次启动都走完整补丁流程（~4.2s）。修复：仅当 targetProfile 为 null（未匹配当前版本目标哈希）时才执行标记检查。健康态跳过补丁，启动 7.6s→3.7s。StableBootstrap 进程 5.45s→1.24s。
 
 ## 核心动机与背景 (Motivation & Background)
-- 本项目是**兼容层**，专门处理「改 IDE app 目录 / LS 启动时序」类问题；姊妹插件 Antigravity-Injection 是**注入层**，处理请求体改写。两者功能零重叠、互不影响。
-- 诞生背景：官方发布新 3.5 模型时，模型 id 导致 IDE 打开即卡死（死循环），故需要模型列表过滤；低版本 IDE 不能直接用，需要版本伪装。
+
+- 用户重装 IDE 到 D 盘后，点发送对话框闪一下不动 → 逐层定位到证书过期导致 exthost 崩溃循环。
+- 修复后桌面双击启动需 20-30 秒 → 只读性能分析定位到正则灾难性回溯。
+- 用户要求：重装后能自动注入、自动接管快捷方式、启动快、不破坏现有功能。
 
 ## 关键设计与实现 (Implementation & Decisions)
-- **Bridge 部署**：`runtime/OneLSAgentProxyBridge.cjs` 中 `AGENT_PRO_ID = "zk-agent.zk-proxy-pro"`，部署到 `D:\Antigravity\resources\app\dao-one-ls-agent-pro.cjs`，让 IDE 主进程的 Agent Pro bridge 能发现并指向本地插件代理。
-- **扩展目录前缀**：`scripts/StableMode.Core.psm1` 中 `$prefix='zk-agent.zk-proxy-pro-'`，用于扫描最高 semver 扩展版本。
-- **版本伪装**：改 `D:\Antigravity\resources\app\product.json` ideVersion=2.5.5，重装/初始化 IDE 后需重新应用。
-- **模型列表过滤/白名单**：改 workbench.js，防止新模型 id 导致 IDE 卡死；当前白名单 Claude Sonnet/Opus 4.6 (Thinking)、Gemini 3.8 Flash (High)。
-- **命令行 Apply**：`pwsh -File "Antigravity稳定模式.ps1" -Mode Apply -CompatibilityMode Gemini37 -InstallRoot "D:\Antigravity"`；也可用「一键安装稳定模式-反重力.cmd」。
-- **职责边界（重要）**：本项目**不再负责模型改写/动态映射**（v9.9.524 起已移入插件），也不负责提示词注入、摘要剔除、标题汉化、模型解锁（插件侧 v9.9.528 已默认禁用解锁，因账号登录后官方本身返回全量模型）。
-- 已清理 backups(2GB)/logs/.codegraph 等历史垃圾；.gitignore 已忽略 backups/logs/.codegraph。
+
+### 性能优化（a4557c7）
+- **文件**：`scripts/StableMode.Core.psm1`，函数 `Test-RestartSafeExtensionContent`（约第1119-1126行）
+- **改动**：`[regex]::Matches(...).Count` → `[regex]::IsMatch(...)`；返回式 `$early.Count -eq 0 -and $safe.Count -eq 1` → `-not $early -and $safe`
+- **语义等价依据**：两模式均含唯一字符串字面量锚点（`"extension activate: unleash init"` / `"extension activate: sentry init"`），在 webpack 单文件打包的 extension.js 里不可能匹配2次，故 Count==1 等价于 IsMatch==true
+- **验证数据**：`Test-RestartSafeExtensionContent` 9400ms→1196ms；完整启动（桌面双击→IDE窗口出现）20.8s→7.6s
+
+### 证书绕过（c21ba13）
+- `StableBootstrap.ps1` 启动 Antigravity.exe 前设置环境变量 `NODE_TLS_REJECT_UNAUTHORIZED=0`
+- 启动参数加 `--ignore-certificate-errors`
+- 证书文件：`D:\Antigravity\resources\app\extensions\antigravity\dist\languageServer\cert.pem`，CN=localhost，NotAfter 2026-09-05（已过期，靠客户端绕过）
+
+### 快捷方式接管（a33428d）
+- 函数 `Invoke-StableShortcutTakeover` 扫描4个位置：桌面、开始菜单、任务栏（如有）、项目内"稳定版.lnk"
+- 改写目标为 `wscript.exe` + 参数指向 `Launch-StableHidden.vbs` → `pwsh.exe -NoProfile -File StableBootstrap.ps1`
+- 原始快捷方式备份到 `backups\shortcuts\<时间戳>\`
+
+### 换行符防护（两项目均已加）
+- 四层防护：pre-commit hook、编辑器 .gitattributes、CI 检查、运行时 ConvertTo-Lf 强制归一
+- 核心规则：**禁止修改 `extension.js` 的换行符**；该文件必须保持 LF
 
 ## 待办事项 (Next Steps)
-- [ ] 无必须修改项，当前与插件 9.9.528 匹配、工作正常。
-- [ ] 重装/重新初始化 IDE 后：运行一次本项目「应用并启动」即可（部署 Bridge + 版本伪装 + 模型过滤），之后安装插件 VSIX，插件自动工作。
+
+- [ ] 用户可选择继续做方案 B（健康态缓存，预计 7.6s→~5s）：在 `Get-CompatibilityInstallStatus` 入口加文件哈希+时间戳缓存，健康态跳过结构检查
+- [ ] 用户实测桌面双击启动速度确认 7.6s
+- [ ] 远期：证书过期问题的根治方案（重新生成 cert.pem 或配置 IDE 信任本地 CA），当前靠客户端绕过
 
 ## 关键上下文
-- 目录: D:\Desktop\Super-File\AI-IDE\AI\反重力\antigravity-old-compat-manager
-- 姊妹插件: D:\Desktop\Super-File\AI-IDE\AI\反重力\Antigravity-Injection (zk-agent.zk-proxy-pro)
-- IDE 安装根: D:\Antigravity
-- GitHub: https://github.com/Huo-zai-feng-lang-li/antigravity-old-compat-manager ；外网代理 http://127.0.0.1:51081
-- 命名必须与插件 publisher.name 严格一致（zk-agent.zk-proxy-pro），否则 Bridge 匹配不到插件、代理不生效
+
+- **IDE 路径**：`D:\Antigravity\Antigravity.exe`，版本 2.5.5
+- **compat 项目**：`D:\Desktop\Super-File\AI-IDE\AI\反重力\antigravity-old-compat-manager`（本次所有修改都在这里）
+- **injection 项目**：`D:\Desktop\Super-File\AI-IDE\AI\反重力\Antigravity-Injection`（注入提示词等功能，本次未改代码，只加了换行符防护规则）
+- **远程仓库**：https://github.com/Huo-zai-feng-lang-li/antigravity-old-compat-manager.git（main 分支）
+- **git 代理**：`http://127.0.0.1:51081`（dotsvpn），push 用 `git -c http.proxy=http://127.0.0.1:51081 push origin main`
+- **pwsh 版本**：用户系统 `pwsh.exe` = 7.6.5（`C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.5.0_x64__8wekyb3d8bbwe\pwsh.exe`）；Bash 工具会话默认 shell = Windows PowerShell 5.1，**执行项目脚本必须用 `pwsh -NoProfile -File`**
+- **启动链路**：桌面 lnk → wscript.exe → Launch-StableHidden.vbs → pwsh.exe -NoProfile -File StableBootstrap.ps1 → 补丁/校验 → Start-Process Antigravity.exe（--remote-debugging-port=9000 --ignore-certificate-errors，前置 NODE_TLS_REJECT_UNAUTHORIZED=0）
+- **已验证死路**：workbench ReadAllText→GetBytes→字符串哈希合并（2.8s，比流式哈希+单独ReadAllText慢13倍），禁止采用
+- **用户偏好（已持久化）**：Windows 上执行 PowerShell 必须显式用 pwsh（PS7），不依赖 Bash 会话默认的 PS5.1
