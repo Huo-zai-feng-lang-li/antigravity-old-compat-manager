@@ -1120,9 +1120,9 @@ function Test-RestartSafeExtensionContent {
     param([Parameter(Mandatory)][string]$Content)
 
     $Content = ConvertTo-LfLineEndings -Content $Content
-    $early = [regex]::Matches($Content, $script:AuthEarlyPattern)
-    $safe = [regex]::Matches($Content, $script:AuthSafePattern)
-    $early.Count -eq 0 -and $safe.Count -eq 1
+    $early = [regex]::IsMatch($Content, $script:AuthEarlyPattern)
+    $safe = [regex]::IsMatch($Content, $script:AuthSafePattern)
+    -not $early -and $safe
 }
 
 function ConvertTo-RestartSafeExtensionContent {
