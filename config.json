@@ -1,0 +1,53 @@
+{
+  "_comment": "Antigravity-Proxy 配置文件",
+  "_version": "1.8",
+  "_build": {
+    "date": "2026-04-10 18:14:43",
+    "config": "Release",
+    "arch": "x64"
+  },
+  "log_level": "info",
+  "traffic_logging": false,
+  "child_injection": true,
+  "child_injection_mode": "filtered",
+  "child_injection_exclude": [],
+  "target_processes": [
+    "language_server_windows",
+    "Antigravity.exe",
+    "Cursor.exe",
+    "node_repl.exe",
+    "Codex.exe",
+    "codex.exe"
+  ],
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 51081,
+    "type": "http"
+  },
+  "fake_ip": {
+    "enabled": true,
+    "cidr": "198.18.0.0/15"
+  },
+  "timeout": {
+    "connect": 15000,
+    "send": 15000,
+    "recv": 15000
+  },
+  "proxy_rules": {
+    "allowed_ports": [
+      80,
+      443
+    ],
+    "dns_mode": "direct",
+    "ipv6_mode": "proxy",
+    "udp_mode": "block",
+    "udp_fallback": "block",
+    "routing": {
+      "enabled": true,
+      "priority_mode": "order",
+      "default_action": "proxy",
+      "use_default_private": true,
+      "rules": []
+    }
+  }
+}
