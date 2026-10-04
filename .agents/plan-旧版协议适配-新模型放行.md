@@ -21,7 +21,7 @@
 
 **文档同步（2026-10-04）**：README.md / README-稳定模式.md / Antigravity重装到启动使用流程.md / notes.md / .agents/rules/README.md / 本计划 / handoff.md / SOP 均已同步到“六档放行 + model-unlock 正式工具链 + 干净 vsix 部署”现状。
 
-**已知遗留（非阻塞，详见 SOP 第七节）**：多会话 bySid 隔离前端暂未带 sid；前端上报失败暂静默回退 3.8；patch 未做进 StableMode.Core 启动自愈；Claude medium/low 档位靠独立 uid 区分（thinkingBudget=-1 是 Gemini 语义，对 Claude 冗余但六档均 200、无害）；插件版本仍 9.9.529 未 bump（同版本本地修订，是否升 9.9.530 待用户决定）。
+**已知遗留（非阻塞，详见 SOP 第七节）**：多会话 bySid 隔离前端暂未带 sid；前端上报失败暂静默回退 3.8；patch 未做进 StableMode.Core 启动自愈；Claude medium/low 档位靠独立 uid 区分（thinkingBudget=-1 是 Gemini 语义，对 Claude 冗余但六档均 200、无害）；插件版本已由 9.9.529 **bump 到 9.9.530 并 CLI 安装、529/528 进 .obsolete、GUI 复验（选 Low 落盘 claude-sonnet-5-5-low 并流式出字）通过、zk 已推送（release commit b313c86）**，该遗留项关闭。
 
 ---
 

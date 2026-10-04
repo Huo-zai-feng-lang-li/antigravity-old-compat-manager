@@ -45,10 +45,12 @@ IDE 自动更新或修复会覆盖 `workbench.desktop.main.js`，Claude 注入�
 
 ## 五、zk 扩展更新（后端固化）
 
-后端改动已落源码项目 `Antigravity-Injection` 并打包：`dist/zk-proxy-pro-9.9.529.vsix`（含 `/__agtarget` 与 `_agReadSelected`，**不含** FAM/H2 tee 等实验探针）。扩展升级到新版本后，安装该 vsix（或按版本同步源码重新 `npm run build`）即可保留旁路改道。源码侧验证：`npm test`（compat **19** 项单测，含旁路 bySid/新鲜窗口/时间戳/回退；三文件合计 **32** pass）、`node tools/checks/antigravity-target-check.js`（校验 dist 与源码一致）。
+后端改动已落源码项目 `Antigravity-Injection`，当前发布版 **9.9.530**：`dist/zk-proxy-pro-9.9.530.vsix`（含 `/__agtarget` 与 `_agReadSelected`，**不含** FAM/H2 tee 等实验探针；9.9.529 是首个含本功能的同版本本地修订，9.9.530 为规范化 bump 发布版，二者后端代码一致）。安装该 vsix（或按版本同步源码重新 build）即可保留旁路改道。
+
+**升级版本号（推荐，2026-10-04 实操到 9.9.530）**：在 Antigravity-Injection 跑 `node scripts/bump-version.mjs 9.9.530`（自动改版本号 → build → 32 测试 + target-check → commit/push；该仓库已配 `http.proxy=http://127.0.0.1:51081` 供 push）。关 IDE（ag=0 ls=0、8937 释放）后用 CLI 安装：`D:\Antigravity\bin\antigravity.cmd --install-extension <仓库>\dist\zk-proxy-pro-9.9.530.vsix --force`。CLI 自动新建 `extensions\zk-agent.zk-proxy-pro-9.9.530\` 并把旧版（529/528）写入 `.obsolete`，无需手动删旧目录。本次 GUI 复验：扩展详情 9.9.530、默认 3.8、七档齐、选 Sonnet Low 落盘 `claude-sonnet-5-5-low` 且流式回 "ok"。源码侧验证：`npm test`（compat **19** 项单测，含旁路 bySid/新鲜窗口/时间戳/回退；三文件合计 **32** pass）、`node tools/checks/antigravity-target-check.js`（校验 dist 与源码一致）。
 
 **2026-10-04 已完成干净部署（运行态 = 该 vsix）**：运行态 529 已用此 vsix 文件级覆盖、实验探针与录制全清，并 GUI 复验通过（默认 3.8、六档在、选 Sonnet Medium 回复正常、`_ag-selected.json` 落盘正确、不再产生任何 h2/fam 日志）。
-同名版本 CLI `--install-extension` 可能跳过，文件级覆盖法（本次实操，需先关 IDE 确认 ag=0 ls=0）：
+**同版本内本地修订**（不 bump、版本号不变）时 CLI `--install-extension` 会跳过，改用文件级覆盖法（以下为 2026-10-04 对 529 的实操存档，需先关 IDE 确认 ag=0 ls=0）；**跨版本升级（如 529→530）优先用上方 CLI 法**：
 1. 备份整目录 `~/.antigravity/extensions/zk-agent.zk-proxy-pro-9.9.529`（本次备份在 `backups/zk-529-pre-clean-20261004`）。
 2. 解压 vsix（zip）到临时目录，`robocopy <临时>\extension <529目录> /E /IS /IT`（只增/覆盖，不删运行时数据）。
 3. 删除 vsix 不含的探针/备份：`_ag-fam-matrix.cjs`、`*.preb2b`、`*.precap`，并清空 `vendor/bundled-origin/_agcap/`（运行时自动重建，启动默认 3.8）。

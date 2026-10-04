@@ -133,7 +133,7 @@
 - 加新模型只改 `model-unlock/patch-workbench.mjs` 顶部 `MODELS` 一张表；uid 以官方 `fetchAvailableModels` 快照逐字为准（`-medium` 不是 `-med`，写错 404）。
 
 **版本号约定**
-- 当前插件 `9.9.529`；本轮在同版本内改源码并重新 build 同名 vsix、文件级覆盖部署（本地锁死补丁工作流，未 bump）。
+- 当前插件 **`9.9.530`**（2026-10-04 已规范化发布：`node scripts/bump-version.mjs 9.9.530` 自动改 package.json/target-check/CHANGELOG → build 530 vsix → 32 测试 → commit/push，zk release commit `b313c86`）；运行态用 `D:\Antigravity\bin\antigravity.cmd --install-extension <vsix> --force` 装为新目录，529/528 自动进 `.obsolete`。此前 9.9.529 为同版本本地修订（文件级覆盖、未 bump）。
 - 要规范化发布时，跑 Antigravity-Injection 的 `node scripts/bump-version.mjs` 升版本（如 9.9.530）→ build → 安装为新扩展目录（旧目录进 .obsolete）；不 bump 则靠 `backups/` 与 target-check 区分本地修订。
 
 ---

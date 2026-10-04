@@ -1,4 +1,11 @@
-# 最新接续状态 (2026-10-04 正式部署) · 运行态已换干净 vsix、实验探针全清、GUI 复验通过
+# 最新接续状态 (2026-10-04) · 插件已规范化发布 9.9.530 并安装运行、两仓库均已推送
+
+## ★★★ 最新：插件 9.9.530 规范化发布 + CLI 安装 + GUI 复验通过（2026-10-04）
+- 版本 bump：在 Antigravity-Injection 跑 `node scripts/bump-version.mjs 9.9.530`（自动改 package.json/target-check/CHANGELOG/RELEASE_NOTES/README → build 530 vsix → 32 测试 + target-check → commit/push）；产出 `dist/zk-proxy-pro-9.9.530.vsix`（58 files, 519.67 KB），zk release commit `b313c86` 已推送（`2b5f03e..b313c86 main`）。
+- 安装（CLI，推荐）：关 IDE（ag=0 ls=0、8937 释放）→ `D:\Antigravity\bin\antigravity.cmd --install-extension <仓库>\dist\zk-proxy-pro-9.9.530.vsix --force` → 自动建 `extensions\zk-agent.zk-proxy-pro-9.9.530\` 并把 529/528 写入 `.obsolete`。文件验证：530 的 package.json version=9.9.530、source.js=314608 含 /__agtarget、compat=6012、探针全无、bundled-origin 19 文件。
+- GUI 复验（cu 双击桌面彩色 A → wscript vbs）：扩展详情 **9.9.530 / 源 VSIX / 已启用**；单窗口不卡死、登录正常、默认 Gemini 3.8 Flash (High)、下拉七项齐；选 **Claude Sonnet 5.5 (Low)** 后 530 的 `_agcap/_ag-selected.json` 实时落盘 `last.uid=claude-sonnet-5-5-low`（证明"界面选择→后端上报"链路可靠；此前一度看到落盘 3.8 只是之后又切回了 3.8，非 bug），发 "say ok" 流式回 "ok"。
+- 当前运行态 = **9.9.530**；529 目录仍在但已 .obsolete（不加载），干净备份 `backups/zk-529-pre-clean-20261004/` 仍可回滚（功能与 530 等同，仅版本号旧）。
+- git：zk 已推送（旁路 `2b5f03e` + release `b313c86`）；compat-manager 已推送（工具链 `cca8fe0`；main 干净基线因含 IDE 内置 OAuth 密钥，按 .gitignore 仅本地保留、不入公开仓库）。
 
 ## ★ 前端工具链正式入库 + 全文档同步（2026-10-04 收尾）
 
@@ -8,8 +15,8 @@
 - 校验：三脚本 `node --check`=0；`verify-workbench.mjs` 实测当前 workbench **SIX-TIERS OK（每 uid×3）**；`list-official-uids.mjs` 确认官方最新 Gemini 仅到 3.8（high/low/medium/tiered，**无 3.9/4.0**）、Claude 六档 + 两基础档。
 - 映射审计：patch 六 uid 全部在官方目录；备份录制显示所有 Claude 请求（高/中/低）`thinkingBudget` 统一 -1、无 thinkingLevel——**档位靠独立 uid 区分（六档 200 + modelVersion 铁证），thinkingBudget 是 Gemini 语义、对 Claude 冗余但无害**。
 - 全文档同步：`README.md`（能力/导航/新模型放行段）、`Antigravity重装到启动使用流程.md`（新增第六节叠加层 + 路径表）、`README-稳定模式.md` 与 `notes.md`（顶部现状指针，历史内容不改写）、`.agents/rules/README.md`（新增 2.5 放行分工/注入红线/工具链入库/版本号约定）、plan（顶部闭环总结）、`SOP-新模型放行.md`（路径/干净部署/回滚）、本 handoff。
-- 版本号：插件仍 **9.9.529**（同版本改源码重打包、文件级覆盖，未 bump）；升 9.9.530 的方法与影响写入 rules 2.5 / SOP，待用户决定。
-- git：zk 项目 3 个源码文件已暂存（M），dist vsix 不入 git；compat-manager 的 model-unlock/、SOP、ps1、plan 待提交；**本轮均未 commit**（提交信息与时机留给用户）。
+- 版本号：当日为 9.9.529（同版本本地修订）；**随后已 bump 到 9.9.530 并 CLI 安装发布（见顶部 ★★★ 区块）**。
+- git：两仓库均已提交推送（zk 旁路 `2b5f03e` + release `b313c86`；compat 工具链 `cca8fe0`）；dist vsix 不入 git。
 
 ## ★★ 运行态已用干净 vsix 替换（方案2完成，信心 10）
 - 部署副本 `~/.antigravity/extensions/zk-agent.zk-proxy-pro-9.9.529/vendor/bundled-origin/` 已用 `Antigravity-Injection\dist\zk-proxy-pro-9.9.529.vsix` 全量覆盖：**source.js=314608、compat=6012（干净加固正式版，node --check 过）**，bundled-origin 收敛为 vsix 的 19 个文件。
