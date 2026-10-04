@@ -13,7 +13,7 @@
  * 用法（在 compat-manager 仓库根目录）：
  *   node model-unlock/capture-official-catalog.mjs check     干跑：只校验锚点/现状，绝不写入
  *   node model-unlock/capture-official-catalog.mjs install   插入临时落盘探针（先自动备份 source.js）
- *   node model-unlock/capture-official-catalog.mjs restore   用备份还原 / 按标记精确移除探针
+ *   node model-unlock/capture-official-catalog.mjs restore   用备份还原 / 按标记精确移除探针（成功后一并删除备份）
  *   （可选第二参数显式指定 source.js 路径，默认自动选版本号最高的已安装 zk 扩展）
  *
  * 操作时序：
@@ -141,7 +141,8 @@ if (cmd === 'restore') {
       console.error('还原后 node --check 失败，请重装干净 vsix:\n' + chk);
       process.exit(2);
     }
-    console.log('已用备份还原 source.js 并通过 node --check');
+    fs.rmSync(bak, { force: true }); // 还原并校验通过后删除备份，不留任何探针痕迹（失败则在上一行 exit，备份保留待排查）
+    console.log('已用备份还原 source.js、删除备份并通过 node --check');
   } else if (already) {
     fs.writeFileSync(sj, s.split(PROBE).join(ANCHOR), 'utf8');
     const chk = nodeCheck(sj);
