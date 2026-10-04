@@ -2,6 +2,8 @@
 
 项目仓库：[antigravity-old-compat-manager](https://github.com/Huo-zai-feng-lang-li/antigravity-old-compat-manager)
 
+> **2026-10-04 新增「新模型放行」叠加层（本文未覆盖）**：本文讲的是基础稳定层（启动器白名单 / 图标接管 / 证书绕过，默认 Gemini 3.8）。在此之上现已可放行 **Claude Opus/Sonnet 5.5 各 High/Medium/Low 六档**及未来官方新模型，工具链在 `model-unlock/`、一键脚本 `放行Claude六档.ps1 -ForceKill`，完整说明见 **`SOP-新模型放行.md`** 与 `model-unlock/README.md`。本文其余内容仍适用于基础稳定层。
+
 ## 用途
 
 提供两种可回退模式：

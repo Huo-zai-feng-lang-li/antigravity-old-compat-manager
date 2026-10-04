@@ -36,8 +36,10 @@
 
 - **当前使用模型：3.8**；未来上 3.9 / 4.0 / 4.1+。
 - **不需要为 3.7 及更低版本做特殊处理。** Gemini37 模式是历史兼容遗留，保留但不主动维护、不新增低版本适配逻辑。
-- 新增高版本模型（3.9+）时，由注入插件（Antigravity-Injection）的动态映射自动适配（从请求 URL 提取实际模型名改写 LS 占位符），**本项目不需要改任何代码**。
-- 仅当需要过滤/隐藏/推荐某个特定模型时，才调整本项目 Workbench 白名单。
+- 新增高版本模型分两类（2026-10-04 厘清）：
+  - **(A) Gemini 同系新档（3.9/4.0…）且旧 UI 能选到**：插件动态映射从请求 URL 提取模型名改写 LS 占位符，自动适配，无需改代码。
+  - **(B) 旧 LS 完全没有的全新模型（如 Claude 5.5 六档）**：旧下拉根本无此项，必须走「新模型放行」叠加层——前端 `model-unlock/` 注入下拉项 + zk `/__agtarget` 旁路按 uid 改道（见第 2.5 节），改一张映射表即可；后端通用透传、零协议转换。
+- 仅当需要过滤/隐藏/推荐某个特定模型时，才调整基础稳定层（StableMode.Core）的 Workbench 白名单。
 
 ### 0.1.1 启动性能硬规则（2026-09-11 定，血泪教训）
 
@@ -59,6 +61,7 @@
 |---|---|---|
 | Bridge 修补部署 | `runtime/OneLSAgentProxyBridge.cjs` | 部署到 Antigravity app 目录，让后台规划器 LS 走本地代理 |
 | 模型列表过滤 | `scripts/StableMode.Core.psm1` (Workbench) | 修改 workbench.js，白名单过滤模型列表，防止未知模型 ID 导致 IDE 前端死循环卡死 |
+| 新模型前端放行 | `model-unlock/patch-workbench.mjs`（一键 `放行Claude六档.ps1`） | 在 workbench 追加放行下拉项（借 modelAlias:8 外壳）+ 选中旁路上报；只加 UI 项与上报，**不改写网络请求体**（body 改写在插件） |
 | 版本伪装 | product.json ideVersion=2.5.5 | 低版本 IDE 绕过版本检查 |
 | 认证时序修复 | main.js 正则替换 | 修复认证启动时序 |
 | 备份/恢复/自愈 | `scripts/StableMode.Core.psm1` | 应用前备份，失败自动回滚 |
@@ -109,6 +112,32 @@
 
 ---
 
+## 2.5 新模型放行叠加层（2026-10-04 定，model-unlock + zk 旁路）
+
+针对旧 LS 完全没有的全新模型（Claude 5.5 六档；未来 Claude 新版同理）。完整原理与操作见 `SOP-新模型放行.md`、`model-unlock/README.md`。
+
+**分工（不得越界）**
+- 前端（本项目 `model-unlock/`）：向 workbench 注入下拉/可见列表/store/回显/选择回调共 5 处；合成项借 `modelAlias:8`(RECOMMENDED，唯一能正常发 v1internal 的外壳；alias:7 会挂起)、带 `__agUid`，选中即 `fetch http://127.0.0.1:8937/__agtarget?uid=...&label=...` 上报。**只加 UI 项与上报，不改写请求体、不碰协议。**
+- 后端（Antigravity-Injection 插件）：`/__agtarget` 落盘 `_agcap/_ag-selected.json`；`_ag-gemini37-compat.cjs` 按 `URL 模型名 > 旁路(bySid→last，120 分钟新鲜窗口) > 默认 gemini-3.8-flash-high` 覆盖主对话占位符 `gemini-2.5-pro` 的 body.model。模型 body 改写**只能在插件源码改并 build vsix**，禁止直接手改运行态部署副本（部署副本只允许用 vsix 文件级覆盖）。
+
+**前端注入红线（违反会导致 IDE 卡死）**
+- 只能用“表达式内 `.concat(内联字面量)`”或函数块体 `{}` 内独立语句；禁止在逗号连接的 let/const 声明链中间插以分号结尾的独立语句。
+- 启动不强选合成模型：可见列表 dutE、store vKc 必须**条件 concat**（官方 clientModelConfigs 非空才追加），默认选中永远由官方配置驱动（=默认 3.8）；合成项一律 concat 在官方项之后。
+- 不动 workbench 状态机/排序；5 个锚点各自计数必须恰为 1，否则 `ANCHOR CHECK FAILED` 不写入；注入后必须 `node --check`，失败回滚干净基线。
+
+**工具链入库红线**
+- 正式工具与干净基线放 `model-unlock/`（随 git 入库）：`patch-workbench.mjs`、`verify-workbench.mjs`、`list-official-uids.mjs`、`fetchAvailableModels.json`、`assets/prod-wb-pre-claude.js`（workbench 干净基线，补丁幂等还原源，必须入库、勿删）。
+- **例外（密钥红线）**：`assets/prod-main-pre-tpe.js`（main.js 基线）含 IDE 官方内置 OAuth client_id/secret（GOCSPX），被 .gitignore 排除、**不入公开仓库**，仅存本机/私有备份；前端补丁不依赖它，仅手动回滚 main.js 时用。任何含 OAuth secret / API 私钥的文件都不得推入公开仓库（GitHub Push Protection 会拦截）。
+- `evidence/`、`backups/` 已被 .gitignore 忽略，只放一次性取证 / 本地备份，**不得**让一键脚本或 SOP 的正式恢复链路依赖其中文件。
+- 本地旁路端口 8937 按 Windows 用户名 FNV 派生（Administrator=8937），不是源码常量；换用户/机器需同步改 patch 里的端口。
+- 加新模型只改 `model-unlock/patch-workbench.mjs` 顶部 `MODELS` 一张表；uid 以官方 `fetchAvailableModels` 快照逐字为准（`-medium` 不是 `-med`，写错 404）。
+
+**版本号约定**
+- 当前插件 `9.9.529`；本轮在同版本内改源码并重新 build 同名 vsix、文件级覆盖部署（本地锁死补丁工作流，未 bump）。
+- 要规范化发布时，跑 Antigravity-Injection 的 `node scripts/bump-version.mjs` 升版本（如 9.9.530）→ build → 安装为新扩展目录（旧目录进 .obsolete）；不 bump 则靠 `backups/` 与 target-check 区分本地修订。
+
+---
+
 ## 3. 关键文件
 
 | 文件 | 职责 |
@@ -118,6 +147,9 @@
 | `Antigravity稳定模式.ps1` | GUI 入口 |
 | `StableBootstrap.ps1` | 启动引导 |
 | `tests/` | 集成测试和单元测试 |
+| `model-unlock/` | 新模型前端放行工具链（补丁/只读校验/官方 uid 快照/干净基线），随 git 入库 |
+| `放行Claude六档.ps1` | 一键关闭 D:\Antigravity 进程并应用 model-unlock 前端补丁（`-ForceKill`） |
+| `SOP-新模型放行.md` | 新模型放行权威操作手册（原理/唯一映射表/zk 部署/回滚/边界） |
 
 > 注：`runtime/Gemini37AgentProxyCompat.cjs` 已移入插件（v9.9.524+），本项目保留为历史参考，不再使用。
 

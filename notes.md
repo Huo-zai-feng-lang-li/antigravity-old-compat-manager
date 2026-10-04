@@ -1,5 +1,7 @@
 # 取证笔记
 
+> **最新现状见 `SOP-新模型放行.md` 与 `.agents/handoff.md`（2026-10-04）**：当前默认 Gemini 3.8 Flash (High)，并已放行 Claude Opus/Sonnet 5.5 六档（前端 `model-unlock/` + zk `/__agtarget` 选择旁路）。下方为 2026-07 前后 Gemini 3.5/3.6 时代的历史取证，保留作时间线记录，其中部分“当前稳定模型策略/隔离区”结论已被后续方案取代。
+
 ## 已确认事实
 
 - 服务端模型目录进入旧版 `userStatus.cascadeModelConfigData` 后，可触发旧模型选择器渲染与选择状态循环。

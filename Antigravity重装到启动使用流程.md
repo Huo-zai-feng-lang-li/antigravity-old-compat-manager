@@ -130,6 +130,8 @@ IDE 正在运行时不能打补丁。完全关闭所有 Antigravity 进程后再
 | 脚本/备份目录 | `D:\Desktop\脚本\` |
 | 兼容管理器 | `D:\Desktop\Super-File\AI-IDE\AI\反重力\antigravity-old-compat-manager\` |
 | 注入项目 | `D:\Desktop\Super-File\AI-IDE\AI\反重力\Antigravity-Injection\` |
+| 新模型放行工具链 | `...\antigravity-old-compat-manager\model-unlock\`（补丁/校验/干净基线） |
+| 新模型放行 SOP | `...\antigravity-old-compat-manager\SOP-新模型放行.md` |
 | IDE 日志 | `%APPDATA%\Antigravity\logs\` |
 | 崩溃 dump | `%APPDATA%\Antigravity\Crashpad\reports\` |
 | 扩展目录 | `C:\Users\Administrator\.antigravity\extensions\` |
@@ -137,6 +139,17 @@ IDE 正在运行时不能打补丁。完全关闭所有 Antigravity 进程后再
 
 ---
 
-## 六、一句话总结
+## 六、放行 Claude 5.5 六档 / 未来新模型（可选叠加层）
 
-> 装 IDE → 把 version.dll + config.json 复制到 IDE 根目录 → 跑「一键安装稳定模式」（自动打补丁+自动接管图标）→ 点桌面图标用。
+一到五节让 IDE 能稳定启动并发消息（基础稳定层，默认 Gemini 3.8）。若还要在下拉里用 **Claude Opus/Sonnet 5.5 六档**或以后官方发布的新模型：
+
+1. 完全关闭 Antigravity（含残留 language_server，确认任务管理器里无残留）。
+2. 在兼容管理器目录运行：`pwsh -NoProfile -ExecutionPolicy Bypass -File .\放行Claude六档.ps1 -ForceKill`（自动关进程 → 从干净基线还原 workbench → 注入六档 → node 语法校验，失败自动回滚，绝不留半成品）。
+3. 双击桌面 Antigravity 图标启动；下拉应见 Gemini 3.8 + Claude 5.5 六档（启动仍默认 3.8，手动切到 Claude 档即用）。
+
+- IDE 自动更新覆盖 workbench 后，重跑该脚本即可恢复（脚本幂等，可重复运行）。
+- 以后发布新模型（如 Gemini 3.9/4.0、Claude 新版）：改 `model-unlock/patch-workbench.mjs` 顶部映射表后重跑；完整原理与步骤见 `SOP-新模型放行.md`、`model-unlock/README.md`。
+
+## 七、一句话总结
+
+> 装 IDE → 把 version.dll + config.json 复制到 IDE 根目录 → 跑「一键安装稳定模式」（自动打补丁+自动接管图标）→ 点桌面图标用；需要 Claude 5.5 六档/未来新模型时，再关 IDE 跑一次 `放行Claude六档.ps1 -ForceKill`。
