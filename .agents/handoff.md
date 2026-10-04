@@ -1,5 +1,9 @@
 # 最新接续状态 (2026-10-04) · 插件已规范化发布 9.9.530 并安装运行、两仓库均已推送
 
+> **【下次官方发布新模型（Gemini 3.9/4.x、Claude 5.6+）先看这里】**
+> 照做 **`model-unlock/说明书-以后加新模型看这里.md`**（6 步傻瓜清单 + 报错对照 + 锚点失配处理）。
+> 要点：新模型**不会**自动可用——下拉自动出现≠能用，选中无 `__agUid` 的官方新项会被回退成默认 3.8；正确流程是用 `model-unlock/capture-official-catalog.mjs`（`check`→`install`→重启 IDE→取 `_agcap/_ag-models-catalog.json` 覆盖快照→`restore`）抓官方真实 uid → 在 `model-unlock/patch-workbench.mjs` 顶部 `MODELS` 加一行 → 关 IDE 跑 `放行Claude六档.ps1 -ForceKill` → GUI 验证 `_ag-selected.json` 落盘 uid 与响应 `modelVersion` → 提交。**同代新模型后端零改动**，仅跨大版本改协议才需动 compat。
+
 ## ★★★ 最新：插件 9.9.530 规范化发布 + CLI 安装 + GUI 复验通过（2026-10-04）
 - 版本 bump：在 Antigravity-Injection 跑 `node scripts/bump-version.mjs 9.9.530`（自动改 package.json/target-check/CHANGELOG/RELEASE_NOTES/README → build 530 vsix → 32 测试 + target-check → commit/push）；产出 `dist/zk-proxy-pro-9.9.530.vsix`（58 files, 519.67 KB），zk release commit `b313c86` 已推送（`2b5f03e..b313c86 main`）。
 - 安装（CLI，推荐）：关 IDE（ag=0 ls=0、8937 释放）→ `D:\Antigravity\bin\antigravity.cmd --install-extension <仓库>\dist\zk-proxy-pro-9.9.530.vsix --force` → 自动建 `extensions\zk-agent.zk-proxy-pro-9.9.530\` 并把 529/528 写入 `.obsolete`。文件验证：530 的 package.json version=9.9.530、source.js=314608 含 /__agtarget、compat=6012、探针全无、bundled-origin 19 文件。

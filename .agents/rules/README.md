@@ -36,9 +36,9 @@
 
 - **当前使用模型：3.8**；未来上 3.9 / 4.0 / 4.1+。
 - **不需要为 3.7 及更低版本做特殊处理。** Gemini37 模式是历史兼容遗留，保留但不主动维护、不新增低版本适配逻辑。
-- 新增高版本模型分两类（2026-10-04 厘清）：
-  - **(A) Gemini 同系新档（3.9/4.0…）且旧 UI 能选到**：插件动态映射从请求 URL 提取模型名改写 LS 占位符，自动适配，无需改代码。
-  - **(B) 旧 LS 完全没有的全新模型（如 Claude 5.5 六档）**：旧下拉根本无此项，必须走「新模型放行」叠加层——前端 `model-unlock/` 注入下拉项 + zk `/__agtarget` 旁路按 uid 改道（见第 2.5 节），改一张映射表即可；后端通用透传、零协议转换。
+- 新增高版本模型（2026-10-04 厘清，**Gemini 与 Claude 结论一致：都不会自动适配**）：
+  - 旧 LS 把新模型降级为 `choice.value=0`；主对话走 `/v1internal:streamGenerateContent`，URL 里**没有**模型名（"从 URL 提取模型名"只对 v1beta REST 附属请求有效，对主对话无效），且前端选中任何无 `__agUid` 的官方新项都会回退上报默认 3.8。
+  - 所以即使下拉自动出现新款，选中也实际跑 3.8；**必须走「新模型放行」叠加层**——抓官方真实 uid + 前端 `model-unlock/` 注入带 `__agUid` 的合成项 + zk `/__agtarget` 旁路按 uid 改道（见第 2.5 节），改一张映射表即可，后端通用透传、零协议转换。傻瓜步骤见 `model-unlock/说明书-以后加新模型看这里.md`。
 - 仅当需要过滤/隐藏/推荐某个特定模型时，才调整基础稳定层（StableMode.Core）的 Workbench 白名单。
 
 ### 0.1.1 启动性能硬规则（2026-09-11 定，血泪教训）
@@ -96,11 +96,10 @@
 
 模型改写/动态映射已移入插件（v9.9.524+），采用**动态映射**：从请求 URL `/v1beta/models/{model}:generateContent` 提取用户实际选择的模型名，改写 LS 占位符 `gemini-2.5-pro`。
 
-**官方发布新模型（3.9/4.0/4.1）时**：
-- 账号登录后官方本身返回全量模型（含新模型，免费/VIP 皆然）；插件模型解锁 v9.9.528 起默认禁用，不靠它解锁
-- 插件动态映射会自动将占位符改写成用户选择的新模型（从 URL 提取），**插件侧不需要改任何代码**
-- 仅当本项目要过滤/推荐/隐藏某个新模型时，才调整下方 Workbench 白名单
-- 不需要重新执行本项目（除非 IDE 重装/更新覆盖了 app 目录）
+**官方发布新模型（Gemini 3.9/4.x、Claude 5.6+）时——不会自动适配，需走放行叠加层**：
+- 账号登录后官方目录虽返回新模型、下拉可能自动出现，但旧 LS 将其降级为 value=0；主对话 /v1internal 的 URL 不含模型名，前端选官方新项又会回退上报默认 3.8，**结果是"界面选新款、实际跑 3.8"**。
+- 正确做法（约 10–20 分钟，后端通常零改动）：照 `model-unlock/说明书-以后加新模型看这里.md` —— 用 `capture-official-catalog.mjs` 抓官方真实 uid → `patch-workbench.mjs` 顶部 MODELS 加合成项 → 关 IDE 跑 `放行Claude六档.ps1 -ForceKill` → GUI 验证落盘 uid / 响应 modelVersion → 提交。
+- 仅当需要过滤/推荐/隐藏某个模型时才动 Workbench 白名单；仅新模型缺必需字段报 400、或跨大版本官方改协议时才动插件后端。
 
 **本项目需要关注的模型相关变更**：
 | 层级 | 文件 | 修改点 |
@@ -114,7 +113,7 @@
 
 ## 2.5 新模型放行叠加层（2026-10-04 定，model-unlock + zk 旁路）
 
-针对旧 LS 完全没有的全新模型（Claude 5.5 六档；未来 Claude 新版同理）。完整原理与操作见 `SOP-新模型放行.md`、`model-unlock/README.md`。
+针对旧 LS 放行不了的新模型（**Claude 5.5 六档已落地；未来 Claude 新版与 Gemini 3.9/4.x 同理，都不会自动适配**）。**下次加新模型直接照做 `model-unlock/说明书-以后加新模型看这里.md`**；完整原理见 `SOP-新模型放行.md`、工具清单见 `model-unlock/README.md`。取官方最新 uid 用 `model-unlock/capture-official-catalog.mjs`（check/install/restore 护栏脚本）。
 
 **分工（不得越界）**
 - 前端（本项目 `model-unlock/`）：向 workbench 注入下拉/可见列表/store/回显/选择回调共 5 处；合成项借 `modelAlias:8`(RECOMMENDED，唯一能正常发 v1internal 的外壳；alias:7 会挂起)、带 `__agUid`，选中即 `fetch http://127.0.0.1:8937/__agtarget?uid=...&label=...` 上报。**只加 UI 项与上报，不改写请求体、不碰协议。**
@@ -126,7 +125,7 @@
 - 不动 workbench 状态机/排序；5 个锚点各自计数必须恰为 1，否则 `ANCHOR CHECK FAILED` 不写入；注入后必须 `node --check`，失败回滚干净基线。
 
 **工具链入库红线**
-- 正式工具与干净基线放 `model-unlock/`（随 git 入库）：`patch-workbench.mjs`、`verify-workbench.mjs`、`list-official-uids.mjs`、`fetchAvailableModels.json`、`assets/prod-wb-pre-claude.js`（workbench 干净基线，补丁幂等还原源，必须入库、勿删）。
+- 正式工具与干净基线放 `model-unlock/`（随 git 入库）：`patch-workbench.mjs`、`verify-workbench.mjs`、`list-official-uids.mjs`、`capture-official-catalog.mjs`（抓官方目录取 uid 的护栏脚本）、`decode-official-models.mjs`（备用解码）、`说明书-以后加新模型看这里.md`（下次加新模型傻瓜清单）、`fetchAvailableModels.json`、`assets/prod-wb-pre-claude.js`（workbench 干净基线，补丁幂等还原源，必须入库、勿删）。
 - **例外（密钥红线）**：`assets/prod-main-pre-tpe.js`（main.js 基线）含 IDE 官方内置 OAuth client_id/secret（GOCSPX），被 .gitignore 排除、**不入公开仓库**，仅存本机/私有备份；前端补丁不依赖它，仅手动回滚 main.js 时用。任何含 OAuth secret / API 私钥的文件都不得推入公开仓库（GitHub Push Protection 会拦截）。
 - `evidence/`、`backups/` 已被 .gitignore 忽略，只放一次性取证 / 本地备份，**不得**让一键脚本或 SOP 的正式恢复链路依赖其中文件。
 - 本地旁路端口 8937 按 Windows 用户名 FNV 派生（Administrator=8937），不是源码常量；换用户/机器需同步改 patch 里的端口。
@@ -150,6 +149,7 @@
 | `model-unlock/` | 新模型前端放行工具链（补丁/只读校验/官方 uid 快照/干净基线），随 git 入库 |
 | `放行Claude六档.ps1` | 一键关闭 D:\Antigravity 进程并应用 model-unlock 前端补丁（`-ForceKill`） |
 | `SOP-新模型放行.md` | 新模型放行权威操作手册（原理/唯一映射表/zk 部署/回滚/边界） |
+| `model-unlock/说明书-以后加新模型看这里.md` | 未来官方发新模型时的傻瓜操作清单（抓 uid→加表→注入→验证→提交，含报错对照） |
 
 > 注：`runtime/Gemini37AgentProxyCompat.cjs` 已移入插件（v9.9.524+），本项目保留为历史参考，不再使用。
 

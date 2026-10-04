@@ -26,7 +26,7 @@
 
 ## 三、放行一个新模型（如未来 Gemini 3.9 / 4.0、Claude 新版）
 
-1. **取真实 uid**：以官方 `fetchAvailableModels` 返回为准（快照 `model-unlock/fetchAvailableModels.json`，可跑 `node model-unlock/list-official-uids.mjs` 列出全部 uid；新模型发布后重新抓包更新该快照）。命名规律：Gemini `gemini-X.Y-flash-{high,medium,low,tiered}`；Claude `claude-{sonnet,opus}-<ver>-{high,medium,low}`。**不要凭缩写猜**（-med 404 教训）。
+1. **取真实 uid**：以官方 `fetchAvailableModels` 返回为准。快照存于 `model-unlock/fetchAvailableModels.json`；**新模型发布后用护栏脚本抓最新目录**：`node model-unlock/capture-official-catalog.mjs check`→`install`→彻底重启 IDE→把生成的 `_agcap/_ag-models-catalog.json` 覆盖为该快照→`restore` 撤探针，再跑 `node model-unlock/list-official-uids.mjs` 列全部 uid（完整傻瓜步骤、报错对照、锚点失配处理见 `model-unlock/说明书-以后加新模型看这里.md`）。命名规律：Gemini `gemini-X.Y-flash-{high,medium,low,tiered}`；Claude `claude-{sonnet,opus}-<ver>-{high,medium,low}`。**不要凭缩写猜**（-med 404 教训）。
 2. **加一行**：在 `model-unlock\patch-workbench.mjs` 的 `MODELS` 追加 `{ label: '下拉显示名', uid: '真实uid' }`（六档都借 modelAlias:8，无需改其它）。
 3. **关 IDE**：完全退出 Antigravity（含残留 language_server，确认 `ag=0 ls=0`）。
 4. **一键应用**：`pwsh -File .\放行Claude六档.ps1 -ForceKill`（脚本从干净基线还原→注入→node --check，幂等；直接 `node model-unlock\patch-workbench.mjs` 等价）。

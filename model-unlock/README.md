@@ -26,6 +26,9 @@
 | `patch-workbench.mjs`          | 前端补丁生成器。从干净基线还原 workbench 后注入放行模型；5 锚点计数校验、注入后 `node --check`、失败自动回滚。**以后加新模型只改它顶部的&#x20;**`MODELS`**&#x20;映射表** |
 | `verify-workbench.mjs`         | 只读校验当前运行态 workbench：每个放行 uid 应出现 3 次（下拉 / 可见列表 /store），并核对旁路与启动守卫。IDE 开着也能跑                                      |
 | `list-official-uids.mjs`       | 从 `fetchAvailableModels.json` 列出官方全部 Claude/Gemini uid，加模型前用来取真实 uid                                             |
+| `capture-official-catalog.mjs` | **新模型发布后取真实 uid 的护栏脚本**：临时让 zk 落盘官方 `fetchAvailableModels` 响应；`check`/`install`/`restore` 三态，自动备份 + 锚点自检 + `node --check` 失败回滚。详见《说明书-以后加新模型看这里.md》 |
+| `decode-official-models.mjs`   | 辅助：从 zk 诊断日志 `_ea_diag.log` 的 `OFFICIAL-BODY-HEX` 解出模型目录（一般用 capture 即可，此为备用）|
+| `说明书-以后加新模型看这里.md` | **下次官方发新模型（Gemini 3.9/4.x、Claude 5.6+）的傻瓜操作清单**：6 步流程 + 报错对照 + 锚点失配处理 + 信心边界 |
 | `fetchAvailableModels.json`    | 官方 `fetchAvailableModels` 响应快照（2026-10-04），新模型 uid 的权威来源；加模型前先更新它                                                |
 | `assets/prod-wb-pre-claude.js` | 干净 Gemini37 态 workbench 基线（约 23.8 MB），补丁的幂等还原源；**勿删**，删了无法还原 / 重打                                                |
 | `assets/prod-main-pre-tpe.js`  | 干净 main.js 基线（约 8.4 MB，tPe 补丁前），仅手动回滚 main.js 时用。注意：**不入公开 git**（含 IDE 官方内置 OAuth client_id/secret），仅存本机/私有备份，换机需自行复制                                                            |
@@ -55,9 +58,11 @@ node model-unlock/verify-workbench.mjs   # 期望 SIX-TIERS OK (each uid x3)
 
 ## 以后发布新模型（如 Gemini 3.9 Flash / 4.0 Pro、Claude 5.6）
 
+> **完整傻瓜步骤、报错对照、锚点失配处理，一律看同目录《说明书-以后加新模型看这里.md》；下面只是速记。**
 
 
-1. 更新 `fetchAvailableModels.json`（官方接口抓取，SOP 第三节有方法），`node model-unlock/list-official-uids.mjs` 拿真实 uid。
+
+1. **取真实 uid**：`node model-unlock/capture-official-catalog.mjs check`→`install`，重启 IDE 抓到官方目录覆盖 `fetchAvailableModels.json`，`restore` 撤探针，再 `node model-unlock/list-official-uids.mjs` 列 uid（详见《说明书》）。
 
 2. 编辑 `patch-workbench.mjs` 顶部 `MODELS`：加 / 改一行 `{ label, uid }`（uid 必须与官方逐字一致，注意 `medium` 不是 `med`）。
 

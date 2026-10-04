@@ -8,7 +8,7 @@
 1. Gemini 3.8 恢复可用，启动默认 **Gemini 3.8 Flash (High)**；
 2. Claude **Opus/Sonnet 5.5 各 High/Medium/Low 六档**全部放行、端到端出字（官方统一网关按 body.model 的 uid 路由，零协议转换；六档 uid 已与 fetchAvailableModels 逐字核对一致）；
 3. 老模型保留、IDE 不卡死（启动不强选合成模型，dutE/vKc 条件 concat 双守卫）；
-4. 未来新模型收敛为“改 `model-unlock/patch-workbench.mjs` 顶部一张 MODELS 映射表 + 重跑 `放行Claude六档.ps1 -ForceKill`”，后端通用透传通常零改动；完整手册见 `SOP-新模型放行.md`。
+4. 未来新模型（Gemini 与 Claude 同理，**都不会自动适配**：下拉出现≠能用，选官方新项会回退 3.8）收敛为“`model-unlock/capture-official-catalog.mjs` 抓官方真实 uid → 改 `model-unlock/patch-workbench.mjs` 顶部一张 MODELS 映射表 → 重跑 `放行Claude六档.ps1 -ForceKill`”，后端通用透传通常零改动；**下次直接照做 `model-unlock/说明书-以后加新模型看这里.md`**，完整手册见 `SOP-新模型放行.md`。
 
 **最终方案（实际落地）**：前端 workbench 借 `modelAlias:8`(RECOMMENDED) 外壳注入合成下拉项（带 `__agUid`），选中经 renderer `fetch http://127.0.0.1:8937/__agtarget` 旁路落盘；zk 插件 compat 对主对话占位符 `gemini-2.5-pro` 按 `URL 模型名 > 旁路(bySid→last，120 分钟新鲜) > 默认 gemini-3.8-flash-high` 覆盖 body.model。
 
