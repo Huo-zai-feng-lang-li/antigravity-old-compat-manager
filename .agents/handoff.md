@@ -1,4 +1,19 @@
-# 最新接续状态 (2026-10-04) · 插件已规范化发布 9.9.530 并安装运行、两仓库均已推送
+# 最新接续状态 (2026-10-14) · 修复单项目登录失败（codeiumDev.useOneLS 冲突）
+
+## ★ 2026-10-14：security-management-platform 单项目登录不上（已修复，文档已入库）
+- **现象**：全局能登录，但唯独 `security-management-platform` 项目打开即 `Authentication Required / Please sign in.`，点 Log in 无反应；切换到任意其他项目正常。
+- **根因（二分法实证）**：该项目 `.vscode/settings.json` 里有 `"codeiumDev.useOneLS": true` —— Codeium 系列扩展借此抢占单一语言服务器，与 Antigravity 自身 LS 冲突，导致该项目认证链路断开。
+  - 铁证：4 项配置（无该行）→ 界面正常 `Ask anything...`；7 项（无）→ 正常；8 项（含 useOneLS）→ `Authentication Required`。
+- **修复**：删掉 `security-management-platform\.vscode\settings.json` 中该行（其余配置全保留，含 `editor.accessibilitySupport`、`animations.Install-Method` 等经测均无害），恢复 keybindings.json，重启即恢复。
+- **排查中一并排除的**：workbench 补丁（还原干净基线后 agentSessions 报错仍在，且非登录主因）、workspaceStorage 缓存（重命名重建无效）、项目改名（改名后仍失败，排除路径）、证书（该项目无 cert 报错）。
+- **顺带修复**：workbench 曾被还原为干净基线（23825890），已重跑 `放行Claude六档.ps1 -ForceKill` 重新注入 Claude 5.5 六档（5 锚点各=1、`SYNTAX OK`、size 23831753）；下拉六档回归、默认仍 Gemini 3.8 Flash (High)。
+- **注意**：IDE 启动参数里带旧的项目路径 `...\security-management-platform-0` 会因路径不存在而启动即退出（`Invalid path provided ... ENOENT`）；该 `-0` 目录是排查时改名所致，实际项目名是 `security-management-platform`，已改回。启动时显式传正确路径即可。
+- **文档**：`Antigravity重装到启动使用流程.md` 新增 **Q6（单项目登录失败 → codeiumDev.useOneLS）** 与 **Q7（全局证书绕过失效排查）**；项目内那份为唯一真相源（git 跟踪），`D:\Desktop\脚本\` 那份已删除以免双份漂移。
+- **git**：compat-manager commit `793094e` 已推送（`76fc528..793094e main`）。
+
+---
+
+# (2026-10-04 存档) 插件已规范化发布 9.9.530 并安装运行、两仓库均已推送
 
 > **【下次官方发布新模型（Gemini 3.9/4.x、Claude 5.6+）先看这里】**
 > 照做 **`model-unlock/说明书-以后加新模型看这里.md`**（6 步傻瓜清单 + 报错对照 + 锚点失配处理）。
