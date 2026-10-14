@@ -120,6 +120,25 @@ IDE 正在运行时不能打补丁。完全关闭所有 Antigravity 进程后再
 
 兼容管理器项目下 `backups\shortcuts\<时间戳>\` 里有原始图标备份，复制回桌面/开始菜单覆盖即可。
 
+### Q6：只有某个项目提示 `Authentication Required / Please sign in.`（其他项目正常）
+
+**这是项目级配置冲突，不是 IDE 坏了，也不是证书问题。** 排查顺序：
+
+1. 确认该项目的 `.vscode/settings.json` 里**没有** `"codeiumDev.useOneLS": true` 这一行。
+   - 该配置让 Codeium 系列扩展抢占单一语言服务器，与 Antigravity 自己的 LS 冲突，导致**只有这个项目**的认证链路断开（切到别的项目却正常）。
+   - 修复：完全关闭 Antigravity → 打开出问题项目的 `.vscode/settings.json` → 删掉这行 → 重新打开项目。
+2. 如果删了还是不行，用二分法定位：把 `.vscode/settings.json` 临时清空为 `{}` 重启，若恢复则是配置项问题；再逐项加回，复现的那一行就是元凶。
+
+> 2026-10-14 实际案例：`security-management-platform` 项目因 `"codeiumDev.useOneLS": true` 登录不上，其他项目均正常；删掉该行后立即恢复。
+
+### Q7：所有项目全局登录不上，日志报 `certificate has expired`
+
+说明**没走兼容启动器**，证书绕过未生效。排查：
+
+1. 看 `%APPDATA%\Antigravity\logs\<最新目录>\window1\renderer.log`，是否有 `[Auth] Error identifying user ConnectError: [internal] certificate has expired`。
+2. 任务管理器 → Antigravity 主进程 → 命令行，**必须**含 `--remote-debugging-port=9000 --ignore-certificate-errors`；若只有 `--reuse-window` 说明被旧实例复用（旧实例无证书绕过）。
+3. 修复：彻底关闭所有 Antigravity + `language_server_windows_x64`（任务管理器确认无残留），再双击**桌面兼容图标**启动。切勿直接双击 `D:\Antigravity\Antigravity.exe`。
+
 ---
 
 ## 五、关键路径速查
