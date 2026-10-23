@@ -10,7 +10,7 @@ import fs from 'node:fs';
 const wb = 'D:\\Antigravity\\resources\\app\\out\\vs\\workbench\\workbench.desktop.main.js';
 const s = fs.readFileSync(wb, 'utf8');
 const uids = [
-  // 与 patch-workbench.mjs 的 MODELS 保持同步（2026-10-23 放行 Claude 5.5 六档）
+  // 与 patch-workbench.mjs 的 MODELS 保持同步（8 项：Claude 5.5 六档 + Gemini 3.8 Medium/Low）
   'claude-opus-5-5-high',
   'claude-opus-5-5-medium',
   'claude-opus-5-5-low',

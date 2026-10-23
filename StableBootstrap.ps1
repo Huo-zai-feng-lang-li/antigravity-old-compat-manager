@@ -358,11 +358,6 @@ if ($selectedMode -eq 'Gemini37' -and [string]::IsNullOrWhiteSpace($resolvedAgen
 $pair = Get-HashPair $resolvedRoot $resolvedAgentProSource
 $profiles = Get-BootstrapProfiles
 $targetProfile = Find-TargetProfile $pair $profiles $selectedMode
-if ($selectedMode -eq 'Gemini37' -and $null -eq $targetProfile) {
-    $workbenchPath = Join-Path $resolvedRoot 'resources\app\out\vs\workbench\workbench.desktop.main.js'
-    $workbenchText = [IO.File]::ReadAllText($workbenchPath)
-    if ($workbenchText.Contains('_agGemini37')) { $targetProfile = $null }
-}
 $shortcutResult = if ($InstallShortcut) { New-StableShortcut $resolvedRoot $ShortcutPath } else { $null }
 # 本地语言服务器自签证书 cert.pem 有效期至 2026-09-05，过期后渲染进程 TLS 握手被拒。
 # --ignore-certificate-errors 覆盖 Chromium 渲染进程；NODE_TLS_REJECT_UNAUTHORIZED 覆盖 Node 扩展宿主。

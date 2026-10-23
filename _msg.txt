@@ -1,0 +1,29 @@
+fix(model-unlock): 采纳 code-reviewer 审查意见，加固失败路径与测试隔离
+
+## 中危修复
+1. **patch-workbench.mjs 回滚路径补全**：原顺序是「写 wb -> 同步 product.json checksum
+   -> node --check -> 失败只回滚 wb」，会留下 checksum 与已回滚基线不匹配的半成品，
+   IDE 启动校验必失败。改为「先在内存校验语法 -> 通过才写 wb -> 再同步 checksum」，
+   失败时任何文件都不动。
+2. **product.json 改原子写**：写 .tmp 再 renameSync，防断电/崩溃损坏 product.json
+   导致 IDE 完全起不来。
+
+## 低危清理
+3. StableBootstrap.ps1 删除死代码（361-365 行，条件已保证 $targetProfile 为 null，
+   再赋 null 是 no-op）。
+4. patch-workbench.mjs 文件头注释与 MODELS 历史注释同步为当前 8 项状态。
+5. verify-workbench.mjs 注释同步为 8 项。
+
+## 配套后端（zk 9.9.532，已发版）
+- 新增 AG_SELECTED_FILE 环境变量隔离点，单测不再污染运行态 _agcap/_ag-selected.json
+- 导出 THINKING_BUDGET_BY_MODEL / _agApplyThinkingBudget 供直接单测
+- 补 5 个测试：URL 显式档位的 thinkingBudget、查表函数表内/表外/缺字段三态
+- zk 全量 43 tests pass
+
+## 验证
+- 回滚路径实测：人为注入语法错误 -> wb 与 product.json 均保持原状（exit 2）
+- checksum 实测：wb sha256 的 base64 == product.json 记录值，无 .tmp 残留
+- 档位直测（532 隔离模式）：high/-1, medium/4000, low/1000, Claude/-1 全 match，
+  且测试后运行态 _ag-selected.json 未被污染
+- 启动后 wb 保持 23833583 字节，verify 8 uid x3 ALL-MODELS OK
+- GUI 下拉 9 项，点选 Gemini Medium 落盘 gemini-3.8-flash-medium

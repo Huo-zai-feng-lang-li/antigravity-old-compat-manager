@@ -2,10 +2,10 @@
  * Antigravity 旧版 workbench 新模型放行补丁（正式工具，随仓库入库）。
  *
  * 作用：在渲染进程 workbench.desktop.main.js 的模型下拉/可见列表/store/回显/选择回调
- *       5 个锚点注入放行模型。当前 MODELS 为空（2026-10-18：清空全部合成项，见下方注释），
+ *       5 个锚点注入放行模型（当前 8 项：Claude 5.5 六档 + Gemini 3.8 Medium/Low）。
  *       空表时直接把 wb 还原为干净基线，下拉与官方原生一致。幂等：每次都从干净 Gemini37
- *       基线 assets/prod-wb-pre-claude.js 还原后再注入；注入后 node --check 校验，
- *       失败自动回滚到干净基线，绝不留半成品导致 IDE 卡死。
+ *       基线 assets/prod-wb-pre-claude.js 还原后再注入；注入后先在内存校验语法，
+ *       通过才落盘并同步 product.json checksum，失败则任何文件都不写，绝不留半成品。
  *
  * 用法：先彻底关闭 Antigravity（ag=0、ls=0），再 `node model-unlock/patch-workbench.mjs`，
  *       或直接运行仓库根目录的 `放行Claude六档.ps1 -ForceKill`（会先关进程再调本脚本）。
@@ -27,7 +27,8 @@ const prePath = path.join(__dirname, 'assets', 'prod-wb-pre-claude.js');
 // uid 必须与官方 fetchAvailableModels / streamGenerateContent 接受的 model 字符串完全一致。
 // 所有合成项共用 modelAlias:8(RECOMMENDED) 外壳过 LS，真实 uid 经选择旁路上报 zk 改道。
 const MODELS = [
-  // 2026-10-18 全部清空（当前账号 free-tier 无权限 + gemini-4-argon 为臆造 uid）：
+  // 【历史，已被 2026-10-23 更新取代】2026-10-18 曾全部清空（当时账号 free-tier 无权限
+  //   + gemini-4-argon 为臆造 uid）：
   //   - gemini-4-argon*  ：官方 fetchAvailableModels 里不存在，后端必 404（臆造命名）
   //   - claude-{opus,sonnet}-5-5-* ：官方元信息写明 "available on paid Pro and Ultra plans"，
   //     当前账号 currentTier=free-tier 无权限；免费档目录里 Claude 仅 claude-opus-4-6-thinking
@@ -102,6 +103,19 @@ for (const p of patches) {
 }
 if (!ok) { console.log('ANCHOR CHECK FAILED — 不写入'); process.exit(1); }
 for (const p of patches) { s = s.split(p.old).join(p.neu); console.log('applied', p.name); }
+// 先在内存里做语法校验，通过才落盘——避免"wb 已写坏 + checksum 已同步"的半成品状态
+const tmp = path.join(__dirname, 'wb-syntax-check.mjs');
+fs.writeFileSync(tmp, s, 'utf8');
+let syntaxOk = true;
+try { execFileSync('node', ['--check', tmp], { stdio: 'pipe' }); console.log('SYNTAX OK'); }
+catch (e) { syntaxOk = false; console.log('SYNTAX FAIL:\n' + (e.stderr ? e.stderr.toString().slice(0, 1500) : e.message)); }
+finally { try { fs.rmSync(tmp, { force: true }); } catch {} }
+if (!syntaxOk) {
+  // 语法校验失败：此时 wb 还没写入、checksum 还没同步，直接退出即可，磁盘保持原状
+  console.log('注入内容语法校验失败，未写入任何文件（workbench 与 product.json 保持原状）');
+  process.exit(2);
+}
+
 fs.writeFileSync(wbPath, s, 'utf8');
 console.log('new wb size =', s.length);
 
@@ -117,21 +131,11 @@ try {
   const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
   if (!product.checksums) product.checksums = {};
   product.checksums['vs/workbench/workbench.desktop.main.js'] = b64;
-  fs.writeFileSync(productPath, JSON.stringify(product, null, 2), 'utf8');
+  // 原子写：先写 .tmp 再 rename，防断电/崩溃导致 product.json 损坏使 IDE 起不来
+  const tmpProduct = productPath + '.tmp';
+  fs.writeFileSync(tmpProduct, JSON.stringify(product, null, 2), 'utf8');
+  fs.renameSync(tmpProduct, productPath);
   console.log('product.json checksum synced =', b64);
 } catch (e) {
   console.log('WARN: product.json 同步失败（不影响 workbench 注入）:', e.message);
-}
-
-const tmp = path.join(__dirname, 'wb-syntax-check.mjs');
-fs.writeFileSync(tmp, s, 'utf8');
-let syntaxOk = true;
-try { execFileSync('node', ['--check', tmp], { stdio: 'pipe' }); console.log('SYNTAX OK'); }
-catch (e) { syntaxOk = false; console.log('SYNTAX FAIL:\n' + (e.stderr ? e.stderr.toString().slice(0, 1500) : e.message)); }
-finally { try { fs.rmSync(tmp, { force: true }); } catch {} }
-if (!syntaxOk) {
-  // 注入后语法校验失败：回滚 workbench 到干净 Gemini37 基线，绝不留半成品导致 IDE 卡死
-  try { fs.copyFileSync(prePath, wbPath); console.log('已回滚 workbench 到干净基线 assets/prod-wb-pre-claude.js'); }
-  catch (rb) { console.log('回滚失败，请手动还原 assets/prod-wb-pre-claude.js：' + rb.message); }
-  process.exit(2);
 }
