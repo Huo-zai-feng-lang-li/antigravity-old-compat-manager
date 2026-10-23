@@ -49,6 +49,12 @@ const MODELS = [
   { label: 'Claude Sonnet 5.5 (High)',   uid: 'claude-sonnet-5-5-high' },
   { label: 'Claude Sonnet 5.5 (Medium)', uid: 'claude-sonnet-5-5-medium' },
   { label: 'Claude Sonnet 5.5 (Low)',    uid: 'claude-sonnet-5-5-low' },
+  //
+  // 2026-10-23：放出 Gemini 3.8 Medium / Low 两档（官方原生下拉只给了 High）。
+  //   thinkingBudget 由后端 _agApplyThinkingBudget 按 uid 动态设置：
+  //   high=-1 / medium=4000 / low=1000，不再无条件抹平为 -1。
+  { label: 'Gemini 3.8 Flash (Medium)', uid: 'gemini-3.8-flash-medium' },
+  { label: 'Gemini 3.8 Flash (Low)',    uid: 'gemini-3.8-flash-low' },
 ];
 if (MODELS.length === 0) {
   fs.copyFileSync(prePath, wbPath);
@@ -98,6 +104,24 @@ if (!ok) { console.log('ANCHOR CHECK FAILED — 不写入'); process.exit(1); }
 for (const p of patches) { s = s.split(p.old).join(p.neu); console.log('applied', p.name); }
 fs.writeFileSync(wbPath, s, 'utf8');
 console.log('new wb size =', s.length);
+
+// 同步 product.json 的 workbench checksum，否则 IDE 启动校验会失败；
+// 同时让 StableBootstrap 的 Test-BootstrapProductState 一致，避免触发重打补丁覆盖注入。
+// wbPath: <root>\resources\app\out\vs\workbench\workbench.desktop.main.js
+// product.json: <root>\resources\app\product.json → 从 wb 目录往上 3 级
+const productPath = path.join(path.dirname(wbPath), '..', '..', '..', 'product.json');
+try {
+  const { createHash } = await import('node:crypto');
+  const h = createHash('sha256').update(Buffer.from(s, 'utf8')).digest();
+  const b64 = h.toString('base64').replace(/=+$/, '');
+  const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
+  if (!product.checksums) product.checksums = {};
+  product.checksums['vs/workbench/workbench.desktop.main.js'] = b64;
+  fs.writeFileSync(productPath, JSON.stringify(product, null, 2), 'utf8');
+  console.log('product.json checksum synced =', b64);
+} catch (e) {
+  console.log('WARN: product.json 同步失败（不影响 workbench 注入）:', e.message);
+}
 
 const tmp = path.join(__dirname, 'wb-syntax-check.mjs');
 fs.writeFileSync(tmp, s, 'utf8');

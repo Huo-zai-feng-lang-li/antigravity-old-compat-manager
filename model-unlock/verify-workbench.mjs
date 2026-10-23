@@ -17,6 +17,8 @@ const uids = [
   'claude-sonnet-5-5-high',
   'claude-sonnet-5-5-medium',
   'claude-sonnet-5-5-low',
+  'gemini-3.8-flash-medium',
+  'gemini-3.8-flash-low',
 ];
 const totalSynthetic = (s.match(/__agUid:/g) || []).length;
 if (uids.length === 0) {

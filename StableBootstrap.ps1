@@ -393,6 +393,18 @@ try {
     if ($null -ne $targetProfile) {
         $needsRepair = -not (Test-BootstrapProductState -Root $resolvedRoot -Pair $pair)
     }
+    # model-unlock 叠加层：wb 同时含 _agGemini37 兼容前缀 + __agUid 注入标记时，
+    # 说明 Stable 层 + 新模型放行层都已就位，视为健康态，跳过重打（否则每次启动都会
+    # 用干净基线覆盖 model-unlock 的注入，导致中低档/Claude 5.5 消失）。
+    if ($needsRepair -and $selectedMode -eq 'Gemini37') {
+        $wbOverlayPath = Join-Path $resolvedRoot 'resources\app\out\vs\workbench\workbench.desktop.main.js'
+        if (Test-Path -LiteralPath $wbOverlayPath -PathType Leaf) {
+            $wbOverlayText = [IO.File]::ReadAllText($wbOverlayPath)
+            if ($wbOverlayText.Contains('_agGemini37') -and $wbOverlayText.Contains('__agUid')) {
+                $needsRepair = $false
+            }
+        }
+    }
     if ($needsRepair) {
         $result = Set-CompatibilityMode `
             -InstallRoot $resolvedRoot `
