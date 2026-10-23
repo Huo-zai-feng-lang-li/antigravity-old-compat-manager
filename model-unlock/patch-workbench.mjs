@@ -2,7 +2,8 @@
  * Antigravity 旧版 workbench 新模型放行补丁（正式工具，随仓库入库）。
  *
  * 作用：在渲染进程 workbench.desktop.main.js 的模型下拉/可见列表/store/回显/选择回调
- *       5 个锚点注入放行模型（当前为 Claude 5.5 六档）。幂等：每次都从干净 Gemini37
+ *       5 个锚点注入放行模型。当前 MODELS 为空（2026-10-18：清空全部合成项，见下方注释），
+ *       空表时直接把 wb 还原为干净基线，下拉与官方原生一致。幂等：每次都从干净 Gemini37
  *       基线 assets/prod-wb-pre-claude.js 还原后再注入；注入后 node --check 校验，
  *       失败自动回滚到干净基线，绝不留半成品导致 IDE 卡死。
  *
@@ -26,6 +27,22 @@ const prePath = path.join(__dirname, 'assets', 'prod-wb-pre-claude.js');
 // uid 必须与官方 fetchAvailableModels / streamGenerateContent 接受的 model 字符串完全一致。
 // 所有合成项共用 modelAlias:8(RECOMMENDED) 外壳过 LS，真实 uid 经选择旁路上报 zk 改道。
 const MODELS = [
+  // 2026-10-18 全部清空（当前账号 free-tier 无权限 + gemini-4-argon 为臆造 uid）：
+  //   - gemini-4-argon*  ：官方 fetchAvailableModels 里不存在，后端必 404（臆造命名）
+  //   - claude-{opus,sonnet}-5-5-* ：官方元信息写明 "available on paid Pro and Ultra plans"，
+  //     当前账号 currentTier=free-tier 无权限；免费档目录里 Claude 仅 claude-opus-4-6-thinking
+  //     / claude-sonnet-4-6（官方原生即可用，无需 patch 注入）
+  //
+  // 以后放行新模型的正确流程（见 SOP-新模型放行.md）：
+  //   1) node model-unlock/capture-official-catalog.mjs check / install → 关 IDE → 开 IDE
+  //   2) 从 _agcap\_ag-models-catalog.json 取官方真实 uid（**必须**能在目录里搜到）
+  //   3) 在下方加行 { label: '官方显示名', uid: '目录里的真实 uid' }
+  //   4) 重跑本脚本（关 IDE）→ GUI 发消息验证 modelVersion
+  //
+  //   { label: 'Gemini X.Y Flash (High)', uid: 'gemini-x.y-flash-high' },
+  //
+  // 2026-10-23：账号官方目录（fetchAvailableModels 实时抓取，103433B / 26 models）已下发 Claude 5.5 六档，
+  //   放行以下六项。Gemini 4 Argon / gemini-4 / gemini5 / gemini-3.9 在官方目录中均为 0 命中，不存在，不放。
   { label: 'Claude Opus 5.5 (High)',   uid: 'claude-opus-5-5-high' },
   { label: 'Claude Opus 5.5 (Medium)', uid: 'claude-opus-5-5-medium' },
   { label: 'Claude Opus 5.5 (Low)',    uid: 'claude-opus-5-5-low' },
@@ -33,6 +50,13 @@ const MODELS = [
   { label: 'Claude Sonnet 5.5 (Medium)', uid: 'claude-sonnet-5-5-medium' },
   { label: 'Claude Sonnet 5.5 (Low)',    uid: 'claude-sonnet-5-5-low' },
 ];
+if (MODELS.length === 0) {
+  fs.copyFileSync(prePath, wbPath);
+  console.log('MODELS 为空 → 已还原干净基线（无合成项，下拉仅显示官方原生模型）');
+  console.log('wb size =', fs.statSync(wbPath).size);
+  process.exit(0);
+}
+
 const optLit = m => '{label:' + JSON.stringify(m.label) +
   ',value:0,modelAlias:8,__agUid:' + JSON.stringify(m.uid) +
   ',disabled:!1,supportsImages:!0,supportedMimeTypes:new Map(),betaWarningMessage:"",isBeta:!1,pricingType:0,description:"",quotaInfo:{remainingFraction:1,resetTime:{seconds:"0",nanos:0}},tagTitle:"New",tagDescription:""}';

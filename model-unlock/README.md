@@ -23,7 +23,7 @@
 
 | 文件                             | 作用                                                                                                               |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `patch-workbench.mjs`          | 前端补丁生成器。从干净基线还原 workbench 后注入放行模型；5 锚点计数校验、注入后 `node --check`、失败自动回滚。**以后加新模型只改它顶部的&#x20;**`MODELS`**&#x20;映射表** |
+| `patch-workbench.mjs`          | 前端补丁生成器。从干净基线还原 workbench 后注入放行模型；5 锚点计数校验、注入后 `node --check`、失败自动回滚。**当前 `MODELS` 为 Claude 5.5 六档（2026-10-23 放行）**；空表时直接还原干净基线。以后加新模型只改它顶部的 `MODELS` 映射表（**必须先按《说明书》两验 uid 存在性 + 账号权限**） |
 | `verify-workbench.mjs`         | 只读校验当前运行态 workbench：每个放行 uid 应出现 3 次（下拉 / 可见列表 /store），并核对旁路与启动守卫。IDE 开着也能跑                                      |
 | `list-official-uids.mjs`       | 从 `fetchAvailableModels.json` 列出官方全部 Claude/Gemini uid，加模型前用来取真实 uid                                             |
 | `capture-official-catalog.mjs` | **新模型发布后取真实 uid 的护栏脚本**：临时让 zk 落盘官方 `fetchAvailableModels` 响应；`check`/`install`/`restore` 三态，自动备份 + 锚点自检 + `node --check` 失败回滚。详见《说明书-以后加新模型看这里.md》 |
@@ -53,7 +53,9 @@
 ```
 # 1) 彻底关 IDE（ag=0、ls=0）  2) 打补丁  3) 校验
 node model-unlock/patch-workbench.mjs
-node model-unlock/verify-workbench.mjs   # 期望 SIX-TIERS OK (each uid x3)
+node model-unlock/verify-workbench.mjs
+# 当前 MODELS 为 Claude 5.5 六档 → 期望每个 uid 各 3 次 + "ALL-MODELS OK (each uid x3, routes/echo/guard verified)"
+# 若 MODELS 清空 → 期望 "MODELS 为空 → 已还原干净基线" + "CLEAN OK (无合成 uid / 无旁路残留，下拉仅官方原生)"
 ```
 
 ## 以后发布新模型（如 Gemini 3.9 Flash / 4.0 Pro、Claude 5.6）
@@ -63,6 +65,7 @@ node model-unlock/verify-workbench.mjs   # 期望 SIX-TIERS OK (each uid x3)
 
 
 1. **取真实 uid**：`node model-unlock/capture-official-catalog.mjs check`→`install`，重启 IDE 抓到官方目录覆盖 `fetchAvailableModels.json`，`restore` 撤探针，再 `node model-unlock/list-official-uids.mjs` 列 uid（详见《说明书》）。
+   **必须确认该 uid 出现在实时目录里 + 账号 tier 能访问**（看 `_agcap/_ag-models-loadcodeassist.json` 的 `currentTier.id` 与模型 `tagDescription`）——2026-10-18 事故就是因为跳过了这一步。
 
 2. 编辑 `patch-workbench.mjs` 顶部 `MODELS`：加 / 改一行 `{ label, uid }`（uid 必须与官方逐字一致，注意 `medium` 不是 `med`）。
 

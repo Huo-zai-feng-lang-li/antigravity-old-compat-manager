@@ -102,6 +102,26 @@ D:\Desktop\Super-File\AI-IDE\AI\反重力\antigravity-old-compat-manager\一键�
 3. 任务管理器 → Antigravity 进程 → 详细信息/模块，确认加载了 version.dll
 4. 如果是放 DLL 之前启动的 IDE，完全关闭后重启（DLL 只在启动时加载）
 
+### Q2.5：新会话首次发送，Gemini 3.8 不响应（消息已发出但模型不回）
+
+**现象**：新建对话后选 Gemini 3.8 Flash（High）发消息，消息能提交、界面不弹错，但模型一直不回字。此时**换成 Claude 等非 Gemini 模型发送一句**，能正常回；再切换回 Gemini 3.8，也恢复正常可用。
+
+**这不是兼容层/代理/LS 挂了**，是 IDE 前端的已知缺陷：新会话首次发送时，cascade 配置里的 `planModel` / `requestedModel` 为空，语言服务器拿不到模型 ID 直接拒绝。日志特征（`%APPDATA%\Antigravity\logs\<最新目录>\window1\exthost\google.antigravity\Antigravity.log`）：
+
+```
+SendUserCascadeMessage (unknown): neither PlanModel nor RequestedModel specified. You must specify a valid model.
+```
+
+**处理**：切一次模型再切回来即可（切换动作会强制前端重新解析并回写模型配置）。想彻底摆脱，按顺序试：
+
+1. 命令面板（`Ctrl+Shift+P`）→ `Antigravity: Reset onboarding` → 重新走一遍设置/登录；
+2. **新建对话**再发（不要续用旧会话，旧会话缓存里模型配置是空的）；
+3. 仍然复现：命令面板 → `Manage MCP Servers` → 全部禁用 → 重启 IDE → 新建对话测试；
+4. 如果开着全局 VPN/代理，临时切直连对照一次（该缺陷在代理环境下更容易触发）。
+
+> 该报错是**瞬态**的，同一会话里只出现一次，切模型后不再复现，不影响后续使用。
+> 2026-10-22 实际案例：本机 1.107.0（伪装 2.5.5）干净基线，新会话首次发 3.8 无响应，切 Claude 后正常，切回 3.8 也恢复。
+
 ### Q3：补丁报错「请先关闭 Antigravity 和语言服务器」
 
 IDE 正在运行时不能打补丁。完全关闭所有 Antigravity 进程后再跑一键安装。
@@ -165,6 +185,8 @@ IDE 正在运行时不能打补丁。完全关闭所有 Antigravity 进程后再
 1. 完全关闭 Antigravity（含残留 language_server，确认任务管理器里无残留）。
 2. 在兼容管理器目录运行：`pwsh -NoProfile -ExecutionPolicy Bypass -File .\放行Claude六档.ps1 -ForceKill`（自动关进程 → 从干净基线还原 workbench → 注入六档 → node 语法校验，失败自动回滚，绝不留半成品）。
 3. 双击桌面 Antigravity 图标启动；下拉应见 Gemini 3.8 + Claude 5.5 六档（启动仍默认 3.8，手动切到 Claude 档即用）。
+   - **2026-10-23 实测**：官方实时目录已下发 Claude 5.5 六档，已放行并端到端验证通过（选 Claude Sonnet 5.5 (High) 发 "say ok" 正常流式回复）。
+   - **Gemini 4 Argon 暂不可用**：官方 fetchAvailableModels 目录中 `argon` / `gemini-4` / `gemini5` / `gemini-3.9` 全部 0 命中，官方尚未发布；等官方下发后再按 SOP 抓真实 uid 放行。
 
 - IDE 自动更新覆盖 workbench 后，重跑该脚本即可恢复（脚本幂等，可重复运行）。
 - 以后发布新模型（如 Gemini 3.9/4.0、Claude 新版）：改 `model-unlock/patch-workbench.mjs` 顶部映射表后重跑；完整原理与步骤见 `SOP-新模型放行.md`、`model-unlock/README.md`。

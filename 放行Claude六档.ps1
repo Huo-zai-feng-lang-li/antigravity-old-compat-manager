@@ -1,8 +1,8 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-  一键给锁死的旧版 Antigravity（D:\Antigravity）workbench 注入
-  Claude 5.5 六档放行 + Gemini 新模型旁路（幂等，可重复运行）。
+  一键给锁死的旧版 Antigravity（D:\Antigravity）workbench 应用/撤销模型放行补丁
+  （幂等，可重复运行）。当前 MODELS 为空 → 直接把 wb 还原为干净基线，下拉与官方原生一致。
 
 .DESCRIPTION
   - 从干净 Gemini37 补丁态基线 model-unlock\assets\prod-wb-pre-claude.js 还原，再按
@@ -59,4 +59,9 @@ Write-Host "应用 workbench 模型放行补丁（幂等：先还原干净 Gemin
 if ($LASTEXITCODE -ne 0) { throw "补丁脚本失败（exit=$LASTEXITCODE），workbench 已被还原为干净基线，未注入半成品。" }
 
 $final = Get-AgState
-Write-Host "完成。当前 ag=$($final.Ag) ls=$($final.Ls)。请用桌面 Antigravity 图标（wscript 启动器）打开验证：下拉应见 Gemini 3.8 + Claude 5.5 六档，启动默认 3.8。" -ForegroundColor Green
+$modes = (Select-String -Path $patch -Pattern "uid: '.*'" | Measure-Object).Count
+if ($modes -eq 0) {
+  Write-Host "完成。当前 ag=$($final.Ag) ls=$($final.Ls)。MODELS 为空，下拉已还原为官方原生状态（当前 Gemini 3.8 + Claude 4.6），启动默认 Gemini 3.8 Flash (High)。" -ForegroundColor Green
+} else {
+  Write-Host "完成。当前 ag=$($final.Ag) ls=$($final.Ls)。MODELS 非空（共 $modes 项），下拉已注入合成项（当前 Gemini 3.8 + Claude 5.5 六档），启动仍默认 Gemini 3.8 Flash (High)，手动切换至 Claude 档即用。" -ForegroundColor Green
+}

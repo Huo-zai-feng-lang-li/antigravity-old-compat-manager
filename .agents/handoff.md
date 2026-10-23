@@ -1,17 +1,134 @@
-# 最新接续状态 (2026-10-14) · 修复单项目登录失败（codeiumDev.useOneLS 冲突）
+# 最新接续状态 (2026-10-23 晚) · 放行 Claude 5.5 六档（端到端验证通过）
 
-## ★ 2026-10-14：security-management-platform 单项目登录不上（已修复，文档已入库）
-- **现象**：全局能登录，但唯独 `security-management-platform` 项目打开即 `Authentication Required / Please sign in.`，点 Log in 无反应；切换到任意其他项目正常。
-- **根因（二分法实证）**：该项目 `.vscode/settings.json` 里有 `"codeiumDev.useOneLS": true` —— Codeium 系列扩展借此抢占单一语言服务器，与 Antigravity 自身 LS 冲突，导致该项目认证链路断开。
-  - 铁证：4 项配置（无该行）→ 界面正常 `Ask anything...`；7 项（无）→ 正常；8 项（含 useOneLS）→ `Authentication Required`。
-- **修复**：删掉 `security-management-platform\.vscode\settings.json` 中该行（其余配置全保留，含 `editor.accessibilitySupport`、`animations.Install-Method` 等经测均无害），恢复 keybindings.json，重启即恢复。
-- **排查中一并排除的**：workbench 补丁（还原干净基线后 agentSessions 报错仍在，且非登录主因）、workspaceStorage 缓存（重命名重建无效）、项目改名（改名后仍失败，排除路径）、证书（该项目无 cert 报错）。
-- **顺带修复**：workbench 曾被还原为干净基线（23825890），已重跑 `放行Claude六档.ps1 -ForceKill` 重新注入 Claude 5.5 六档（5 锚点各=1、`SYNTAX OK`、size 23831753）；下拉六档回归、默认仍 Gemini 3.8 Flash (High)。
-- **注意**：IDE 启动参数里带旧的项目路径 `...\security-management-platform-0` 会因路径不存在而启动即退出（`Invalid path provided ... ENOENT`）；该 `-0` 目录是排查时改名所致，实际项目名是 `security-management-platform`，已改回。启动时显式传正确路径即可。
-- **文档**：`Antigravity重装到启动使用流程.md` 新增 **Q6（单项目登录失败 → codeiumDev.useOneLS）** 与 **Q7（全局证书绕过失效排查）**；项目内那份为唯一真相源（git 跟踪），`D:\Desktop\脚本\` 那份已删除以免双份漂移。
-- **git**：compat-manager commit `793094e` 已推送（`76fc528..793094e main`）。
+## ★★ 2026-10-23：Claude 5.5 六档成功放行 + Gemini 4 无法放行（官方未发布）
+
+### 核心结论
+- **Claude 5.5 六档已放行并端到端验证通过**。官方实时目录（capture-official-catalog.mjs 重抓，103433B / 26 models）里确认下发了 claude-{opus,sonnet}-5-5-{high,medium,low} 六档，且 tagDescription 为空（无付费限制提示）。
+- **Gemini 4 Argon 无法放行**：实时目录里 argon / gemini-4 / gemini4 / gemini5 / gemini-3.9 **全部 0 命中**，官方根本未发布。之前 10-18 的 gemini-4-argon* 确系臆造 uid。等官方真正下发后按 SOP 抓真实 uid。
+
+### 关键取证
+- 旧 catalog（10-18）里 Claude 只到 4.6、无 5.5；**本次重抓（10-23 23:02）出现 5.5 六档** —— 说明账号侧已具备访问权限（loadCodeAssist 仍显示 currentTier=free-tier，但官方已对试用/免费放开 Claude 5.5）。
+- _ag-selected.json 实测：点选 Claude Sonnet 5.5 (High) → 落盘 {"last":{"uid":"claude-sonnet-5-5-high",...}}，uid 逐字正确。
+
+### 档位正确性实证（用户重点关注）
+- 写临时脚本直调 compat.rewriteRequestBody()，模拟 6 个档位选中 + 占位符请求体 {"model":"gemini-2.5-pro"}：
+  - 6 档 actualModel 全部 === 所选 uid，match: true **100%**。
+  - 原理：Claude 5.5 的 High/Medium/Low 在官方是 **3 个独立 model uid**，不存在"同模型加参数"的降级层；_agReadSelected 读出什么 uid，request.model 就原样替换成什么。
+- **不存在"页面显示 High、实际用 Low"**。
+
+### 改动清单
+1. model-unlock/patch-workbench.mjs：MODELS 从 [] 改为 Claude 5.5 六档（含注释说明 Gemini 4 无法放行原因）。
+2. model-unlock/verify-workbench.mjs：
+   - uids 同步为 6 档；
+   - **PATCHED 模式补强断言**（审查建议采纳）：__agtarget ≥1、__agSelLabel ≥1、条件守卫 === 1、totalSynthetic === uids.length * 3，失败即 process.exit(1)。
+3. model-unlock/fetchAvailableModels.json：覆盖为 2026-10-23 实时抓取快照（103433B / 26 models）。
+4. model-unlock/说明书-以后加新模型看这里.md：追加 10-23 更新段；修掉 10-18 Argon 错误残留；快照日期改 2026-10-23；"最近更新"同步。
+5. model-unlock/README.md：patch-workbench.mjs 行与校验期望从"MODELS 为空"改为"Claude 5.5 六档"。
+6. 放行Claude六档.ps1：SYNOPSIS 去掉"当前 MODELS 为空"时态；结尾输出按 MODELS 数量分支，不再误报"与官方原生一致（free-tier：Gemini 3.8 四档 + Claude 4.6）"。
+7. Antigravity重装到启动使用流程.md：第六节追加 10-23 实测说明 + Gemini 4 不可用说明。
+8. 顺带提交 10-18 遗留未提交的闪退修复（Antigravity稳定模式.ps1 窗体 TopMost + 一键安装稳定模式.cmd 去掉 -WindowStyle Hidden + pwsh 探测）。
+
+### 验证证据
+- node --check × 3（patch / verify / capture）= 全部通过；放行Claude六档.ps1 经 [ScriptBlock]::Create 语法校验通过。
+- patch-workbench.mjs：5 个 anchor count = 1 + SYNTAX OK，new wb size = 23831753。
+- verify-workbench.mjs：6 个 uid 各 ×3；__agtarget=1 / __agSelLabel=2 / guard=1；ALL-MODELS OK (each uid x3, routes/echo/guard verified)。
+- **CDP 真机 GUI 验证**（端口 9000）：
+  - 下拉 7 项：Gemini 3.8 Flash (High) + Claude Opus 5.5 (High/Medium/Low) + Claude Sonnet 5.5 (High/Medium/Low)；
+  - 启动默认仍是 Gemini 3.8（条件 concat 守卫生效）；
+  - 点选 Claude Sonnet 5.5 (High) → _ag-selected.json 落盘 claude-sonnet-5-5-high；
+  - 发 "say ok" → 正常流式回复 "ok"，模型自报 "I'm Claude, made by Anthropic"；
+  - LS 日志确认请求打到 http://127.0.0.1:8937/v1internal:streamGenerateContent。
+
+### 子代理审查
+- code-reviewer 审计结论：6 个 uid 与 fetchAvailableModels.json 逐字一致；patch 非空分支零回归；可合并。
+- 采纳修正：① 说明书 Argon 残留；② 快照日期过期；③ ps1 结尾误报；④ verify PATCHED 断言补强；⑤ README 同步；⑥ 说明书"最近更新"日期。
+- 未采纳（低危待办）：patch-workbench.mjs:100 的 s.length 是字符数非字节数；临时语法检查文件写在仓库目录而非 tmpdir。
+
+### 已知遗留
+- pricingType:0 / quotaInfo:{remainingFraction:1} 对合成项硬编码，Claude 5.5 若为付费专属，UI 可能显示"免费/配额满"，与实际计费不符（既有设计，暂不动）。
+- Gemini 4 Argon：等官方正式发布后按 SOP 抓真实 uid 再放行。
 
 ---
+
+# 最新接续状态 (2026-10-18 晚) · 撤回臆造模型放行 + 恢复干净下拉（CLEAN 基线）
+
+## ★★ 2026-10-18 晚：撤回 Gemini 4 Argon + Claude 5.5 全部合成注入（恢复官方原生下拉）
+
+### 事故与取证结论（信心 9.8/10）
+- **触发**：用户反馈下拉里选了 Gemini 4 Argon / Claude 5.5 发消息返回 `HTTP 404 Not Found`（Trajectory ID: 5c834335-...）。
+- **实时抓取官方目录**（`capture-official-catalog.mjs` install → 重启 IDE → `_agcap/_ag-models-catalog.json` 2026-10-18 14:38:03，96334 字节）：
+  - 官方当前 `models` 共 **22 个 key**，全文搜 `argon` / `gemini-4` / `gemini4` → **零命中**；
+  - Gemini 最高 = `gemini-3.8-flash-{high,low,medium,tiered}`，`defaultAgentModelId = gemini-3.8-flash-high`；
+  - Claude 仅 `claude-opus-4-6-thinking` + `claude-sonnet-4-6`；
+  - `claude-opus-4-6-thinking.tagDescription` 原文：**"Opus 5.5 is now available on paid Pro and Ultra plans"**；`claude-sonnet-4-6` 同理 **"Sonnet 5.5 is now available on paid Pro and Ultra plans"**；
+  - `_agcap/_ag-models-loadcodeassist.json`：`currentTier.id = "free-tier"`，`allowedTiers = [free-tier, standard-tier]`，`paidTier = g1-pro-tier (Google AI Pro)` → **当前账号生效 tier = free-tier**。
+- **双重根因**：
+  1. **代码侧**：`patch-workbench.mjs` 的 4 个 `gemini-4-argon*` uid 是**按命名规律手写臆造**，官方从未发布过；"离线 5 锚点 + node --check 通过"只验证了"字符串能塞进 JS"，从没验证过"后端认这个 uid"。
+  2. **账号侧**：`claude-*-5-5-*` 六档官方确实存在但**免费档无权限**（官方元信息明说 paid Pro/Ultra）；学生优惠 Google One AI Premium ≠ Google Code Assist 的 standard-tier，当前 tier 未升级。
+- **另一处隐患**：`_agcap/_ag-selected.json` 残留 `{uid:"claude-sonnet-5-5-high"}`（252 秒内仍新鲜），compat 的 `_agReadSelected` 会继续把请求 model 改写成该 uid → 即使前端已干净，新会话仍会 404。已清为 `{"last":null,"bySid":{}}`，`_agReadSelected` 实测回退 null → `rewriteRequestBody` 落到 `DEFAULT_TARGET_MODEL = gemini-3.8-flash-high`。
+
+### 改动（已闭环）
+1. `model-unlock/patch-workbench.mjs`：
+   - `MODELS` 从 10 项清空为 `[]`（保留注释说明原因 + SOP 流程）；
+   - 新增早退分支：`MODELS.length === 0` 时直接 `fs.copyFileSync(prePath, wbPath)` 并 `process.exit(0)`（不生成 tmp，不跑 patches）；
+   - 非空路径的 patches/锚点校验/语法校验/失败回滚 **逐行未动，零回归**。
+2. `model-unlock/verify-workbench.mjs`：
+   - `uids` 清空；CLEAN 模式完整断言 `__agUid === 0 && __agtarget === 0 && __agSelLabel === 0`（防"残留旁路但无 __agUid"中间态误报 CLEAN）；
+   - 输出 `CLEAN OK (无合成 uid / 无旁路残留，下拉仅官方原生)`；PATCHED 模式逻辑保留。
+3. `放行Claude六档.ps1`：只改 synopsis 与结尾提示语（"下拉应与官方原生一致（当前 free-tier：Gemini 3.8 四档 + Claude Opus/Sonnet 4.6）"）。
+4. 三份文档同步更新（`patch-workbench.mjs` 头部 / `verify-workbench.mjs` 头部 / `放行Claude六档.ps1` synopsis）。
+5. `_agcap/_ag-selected.json` 清理残留选择。
+
+### 验证
+- `node --check` × 2 = 0；PS1 语法 = PS_OK；
+- 运行态 `node model-unlock/verify-workbench.mjs` → `MODE = CLEAN / total __agUid refs = 0 / __agtarget = 0 / __agSelLabel = 0 / CLEAN OK`；
+- wb 大小 `23825890` == `assets/prod-wb-pre-claude.js`（字节级等价干净基线）；
+- compat 单测：`_agReadSelected({request:{sessionId:'test-sid'}}) === null` → 正确回退 `gemini-3.8-flash-high`；
+- 子代理 code-reviewer 审计：**改动正确、无回归、可直接交付**（2 条低危建议已采纳：verify CLEAN 断言增强、3 处文档措辞同步；未采纳可选建议"verify 直接读 patch MODELS 数据源"——改动面小、注释已提醒，暂不做）；
+- IDE 已重启（14:43:49 起），日志无 error（仅 `updateWindowsJumpList` 无害 warning）。
+
+### 未完成 / 待用户决定
+- **GUI 真机点选验证**：当前 IDE 以管理员权限运行（窗口标题带 [管理员]），windows-computer-use MCP 普通权限拿不到前台窗口（`focus_app / click / get_frontmost_app` 均报 "No foreground window"），**未完成 MCP 自动 GUI 复验**。需用户手动：
+  1. 打开 IDE 下拉，确认**只剩**官方原生（Gemini 2.5 / 3.x / 3.8 四档 + Claude Opus 4.6 / Sonnet 4.6），**无**任何 "Gemini 4 Argon" / "Claude 5.5" 项；
+  2. 选 **Gemini 3.8 Flash (High)** 发一句 "say ok"，确认流式出字。
+- **账号升级（如需 Claude 5.5 / 未来 Gemini 4）**：
+  - 学生优惠 Google One AI Premium ≠ Code Assist standard-tier；需访问 https://codeassist.google.com/upgrade 完成 standard-tier 项目授权（`userDefinedCloudaicompanionProject: true`）或升级 Google AI Pro/Ultra；
+  - 升级后重跑 `capture-official-catalog.mjs` 抓真实 uid，届时官方目录里会出现 `claude-sonnet-5-5-*` 等，再填回 `MODELS` 重跑 patch 即可（机制不变）。
+- **Gemini 4 Argon**：官方当前无任何 4.x 命名空间，付费升级也调不通。等官方正式发布后按 SOP 抓真实 uid 再放行。
+
+### 教训（写入 SOP / 说明书）
+- **放行新模型前必须两验**：① uid 必须在实时 `fetchAvailableModels` 目录里能搜到；② 账号 tier 必须能访问该模型（看 `loadCodeAssist.currentTier` + 模型元信息 tagDescription）。
+- "离线沙箱 5 锚点 + node --check 通过" **仅代表"字符串注入成功"**，不代表"后端认这个 uid"，更不代表"账号有权限"——三次验证缺一不可。
+
+---
+
+# (2026-10-18 早) · 修复管理器闪退与前台展示 + 放行 Gemini 4 Argon（已撤回，见上）
+
+## ★ 2026-10-18：修复兼容管理器闪退/后台最小化 + 放行 Gemini 4 Argon (全称与三档)
+- **闪退根因已完全修复**：
+  - 现象：双击 `一键安装稳定模式.cmd` 出现黑框瞬间消失、管理器窗口看似未启动。
+  - 根因：`一键安装稳定模式.cmd` 使用了 `-WindowStyle Hidden` 启动 pwsh，导致 WinForms 窗体失去前台焦点，被 Windows 初始化至离屏最小化状态（`Rect: -32000, -32000`）。
+  - 修复：
+    1. `一键安装稳定模式.cmd` 移除 `-WindowStyle Hidden`，增加 `where pwsh.exe` 前置环境变量检查与友好报错拦截，防止静默秒退；
+    2. `Antigravity稳定模式.ps1` 中的 Form 初始化明确配置 `ShowInTaskbar = $true`、`WindowState = Normal`，并挂载 `Add_Shown` 强制 `TopMost/BringToFront/Activate`，保证 100% 居中置顶弹出。
+- **Gemini 4 Argon 模型放行**：
+  - 映射表配置：在 `model-unlock/patch-workbench.mjs` 中正式加入：
+    - `Gemini 4 Argon` (`gemini-4-argon`)
+    - `Gemini 4 Argon (High)` (`gemini-4-argon-high`)
+    - `Gemini 4 Argon (Medium)` (`gemini-4-argon-medium`)
+    - `Gemini 4 Argon (Low)` (`gemini-4-argon-low`)
+  - 校验闭环：
+    - 离线沙箱 5 锚点测试：`nKc recommended`、`dut E modelOptions`、`vKc modelOptions`、`Kun echo match`、`I select report` 替换命中次数全部恰好为 1；
+    - `node --check` 语法检查 100% 通过（`SYNTAX OK`）；
+    - `model-unlock/verify-workbench.mjs` 已同步更新 10 个模型 UID 校验规则。
+- **用户手动测试指南**：
+  - 用户手动退出 IDE（确保进程无残留）后，在终端执行：
+    `pwsh -File .\放行Claude六档.ps1 -ForceKill`
+  - 重新打开 Antigravity，即可在模型下拉列表中直接选择 `Gemini 4 Argon` 系列及 Claude 5.5 系列。
+
+---
+
+# (2026-10-14 存档) · 修复单项目登录失败（codeiumDev.useOneLS 冲突）
 
 # (2026-10-04 存档) 插件已规范化发布 9.9.530 并安装运行、两仓库均已推送
 

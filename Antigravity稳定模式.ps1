@@ -204,7 +204,16 @@ function Show-StableModeGui {
         Height = 560
         StartPosition = 'CenterScreen'
         Font = [Drawing.Font]::new('Microsoft YaHei UI', 10)
+        ShowInTaskbar = $true
+        WindowState = [Windows.Forms.FormWindowState]::Normal
     }
+    $form.Add_Shown({
+        $this.WindowState = [Windows.Forms.FormWindowState]::Normal
+        $this.TopMost = $true
+        $this.BringToFront()
+        $this.Activate()
+        $this.TopMost = $false
+    })
     $pathBox = [Windows.Forms.TextBox]@{ Left = 18; Top = 22; Width = 620; Text = $InstallRoot }
     $browse = [Windows.Forms.Button]@{ Left = 650; Top = 19; Width = 95; Text = '选择目录' }
     $stableRadio = [Windows.Forms.RadioButton]@{
@@ -276,7 +285,11 @@ function Show-StableModeGui {
         finally { & $setUiState $true }
     })
 
-    $output.Text = Format-Status (Get-CompatibilityInstallStatus -InstallRoot $pathBox.Text -Mode $CompatibilityMode)
+    try {
+        $output.Text = Format-Status (Get-CompatibilityInstallStatus -InstallRoot $pathBox.Text -Mode $CompatibilityMode)
+    } catch {
+        $output.Text = "初始检测失败：" + $_.Exception.Message
+    }
     $refreshTarget = {
         try {
             $selected = Get-SelectedCompatibilityMode $stableRadio $gemini37Radio
