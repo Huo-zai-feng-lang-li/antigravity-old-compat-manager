@@ -14,8 +14,144 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_BASE_URL = (process.env.SUBAGENT_BASE_URL || 'https://apihub.agnes-ai.cn/v1').replace('apihhub.', 'apihub.');
-const DEFAULT_API_KEY = process.env.SUBAGENT_API_KEY || '';
 const DEFAULT_MODEL = process.env.SUBAGENT_MODEL || 'agnes-3.0-flash';
+const PROXY_URL = process.env.SUBAGENT_PROXY || null;
+
+// 安全加载 API Key：严禁在公开代码中硬编码任何真实密钥
+// 优先级：1. 本地 keys.json (已在 .gitignore 中忽略) -> 2. 环境变量 SUBAGENT_API_KEYS (逗号分隔) -> 3. 环境变量 SUBAGENT_API_KEY
+function loadApiKeys() {
+  const keys = [];
+  const localKeysPath = path.join(__dirname, 'keys.json');
+  if (fs.existsSync(localKeysPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(localKeysPath, 'utf8'));
+      if (Array.isArray(parsed)) keys.push(...parsed);
+      else if (parsed.keys && Array.isArray(parsed.keys)) keys.push(...parsed.keys);
+    } catch (e) {}
+  }
+  if (process.env.SUBAGENT_API_KEYS) {
+    keys.push(...process.env.SUBAGENT_API_KEYS.split(',').map(k => k.trim()));
+  }
+  if (process.env.SUBAGENT_API_KEY) {
+    keys.push(process.env.SUBAGENT_API_KEY.trim());
+  }
+  return Array.from(new Set(keys.filter(Boolean)));
+}
+
+const API_KEYS = loadApiKeys();
+
+let currentKeyIndex = 0;
+function getActiveKey() {
+  return API_KEYS[currentKeyIndex % API_KEYS.length];
+}
+function rotateKey() {
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+}
+
+const http = require('http');
+const https = require('https');
+const urlMod = require('url');
+
+/**
+ * 优先通过本地 HTTP CONNECT 隧道代理发起 HTTPS 请求
+ */
+function sendRequestViaProxy(targetUrlStr, postBody, apiKey, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(postBody);
+    const targetParsed = urlMod.parse(targetUrlStr);
+    const targetHost = targetParsed.hostname;
+    const targetPort = targetParsed.port || (targetParsed.protocol === 'https:' ? 443 : 80);
+    const targetPath = targetParsed.path;
+
+    let proxyParsed = null;
+    if (PROXY_URL) {
+      try {
+        proxyParsed = urlMod.parse(PROXY_URL);
+      } catch (e) {
+        proxyParsed = null;
+      }
+    }
+
+    const timer = setTimeout(() => {
+      reject(new Error(`Request timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    // 如果未配置有效代理或解析失败，降级为直连 HTTPS
+    if (!proxyParsed || !proxyParsed.hostname) {
+      const directReq = https.request({
+        host: targetHost,
+        port: targetPort,
+        path: targetPath,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        rejectUnauthorized: false
+      }, (res) => {
+        let respData = '';
+        res.on('data', chunk => respData += chunk);
+        res.on('end', () => {
+          clearTimeout(timer);
+          resolve({ status: res.statusCode, text: respData });
+        });
+      });
+      directReq.on('error', (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      directReq.write(postData);
+      directReq.end();
+      return;
+    }
+
+    // 走 HTTP CONNECT 隧道
+    const connectReq = http.request({
+      host: proxyParsed.hostname,
+      port: proxyParsed.port || 80,
+      method: 'CONNECT',
+      path: `${targetHost}:${targetPort}`
+    });
+
+    connectReq.on('connect', (res, socket) => {
+      const tlsReq = https.request({
+        host: targetHost,
+        path: targetPath,
+        method: 'POST',
+        socket: socket,
+        agent: false,
+        rejectUnauthorized: false,
+        headers: {
+          'Host': targetHost,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      }, (tlsRes) => {
+        let respData = '';
+        tlsRes.on('data', chunk => respData += chunk);
+        tlsRes.on('end', () => {
+          clearTimeout(timer);
+          resolve({ status: tlsRes.statusCode, text: respData });
+        });
+      });
+
+      tlsReq.on('error', (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      tlsReq.write(postData);
+      tlsReq.end();
+    });
+
+    connectReq.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    connectReq.end();
+  });
+}
 
 // 审查专家的系统 Prompt
 const SYSTEM_AUDIT_PROMPT = `你是一个资深架构师兼严苛的安全与代码审计专家（Independent Review Subagent）。
@@ -65,8 +201,14 @@ const tools = [{
       },
       model: {
         type: "string",
-        description: "调用的审查模型（默认 agnes-3.0-flash，支持 xhigh 顶级思维链推导）",
+        description: "调用的审查模型（默认 agnes-3.0-flash，支持 max 顶级思维链推导）",
         default: "agnes-3.0-flash"
+      },
+      reasoning_effort: {
+        type: "string",
+        description: "思维链深度推理强度（默认 'max'，可选 'low' | 'medium' | 'high' | 'xhigh' | 'max'）",
+        enum: ["low", "medium", "high", "xhigh", "max"],
+        default: "max"
       },
       timeout: {
         type: "number",
@@ -80,7 +222,7 @@ const tools = [{
 /**
  * 派发 API 执行子代理
  */
-async function executeSubagent({ user_goal, solution_summary, review_focus, task, files = [], model = DEFAULT_MODEL, timeout = 120 }) {
+async function executeSubagent({ user_goal, solution_summary, review_focus, task, files = [], model = DEFAULT_MODEL, reasoning_effort = 'max', timeout = 120 }) {
   // 1. 前置卫语句拦截：防空指令
   if (!user_goal && !task) {
     return {
@@ -135,42 +277,63 @@ async function executeSubagent({ user_goal, solution_summary, review_focus, task
     ? `${finalDirective}\n\n以下是待审查的相关文件源码：${fileContext}`
     : finalDirective;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(5, timeout) * 1000);
+  // 确保服务端真实接收并触发最高档思维链：实测证实 max 为封顶档位
+  const targetEffort = reasoning_effort || 'max';
+
+  // 支持自动轮换 Key 容灾（防止 429 限流）
+  let lastErrorText = '';
+  let successfulData = null;
+  const attempts = Math.min(3, API_KEYS.length);
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const currentKey = getActiveKey();
+    try {
+      const resp = await sendRequestViaProxy(
+        `${DEFAULT_BASE_URL}/chat/completions`,
+        {
+          model: model || DEFAULT_MODEL,
+          messages: [
+            { role: 'system', content: SYSTEM_AUDIT_PROMPT },
+            { role: 'user', content: promptContent }
+          ],
+          reasoning_effort: targetEffort,
+          temperature: 0.2
+        },
+        currentKey,
+        Math.max(5, timeout) * 1000
+      );
+
+      if (resp.status === 200) {
+        successfulData = JSON.parse(resp.text);
+        break;
+      }
+
+      lastErrorText = `(HTTP ${resp.status}): ${resp.text}`;
+      // 如果被限流 429 或认证异常，轮换 key 重试
+      if (resp.status === 429 || resp.status === 401 || resp.status === 403) {
+        rotateKey();
+        continue;
+      } else {
+        break;
+      }
+    } catch (reqErr) {
+      lastErrorText = reqErr.message;
+      rotateKey();
+    }
+  }
+
+  if (!successfulData) {
+    return {
+      content: [{
+        type: "text",
+        text: `[子代理 API 响应异常]: ${lastErrorText}`
+      }],
+      isError: true
+    };
+  }
 
   try {
-    const response = await fetch(`${DEFAULT_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEFAULT_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: model || DEFAULT_MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_AUDIT_PROMPT },
-          { role: 'user', content: promptContent }
-        ],
-        reasoning_effort: 'xhigh',
-        temperature: 0.2
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return {
-        content: [{
-          type: "text",
-          text: `[子代理 API 响应异常 (HTTP ${response.status})]:\n${errText}`
-        }],
-        isError: true
-      };
-    }
-
-    const data = await response.json();
+    const data = successfulData;
     const choice = data.choices?.[0];
     const message = choice?.message || {};
     const content = (message.content || '').trim();
@@ -181,8 +344,14 @@ async function executeSubagent({ user_goal, solution_summary, review_focus, task
       output += `【子代理独立审查结论】\n${content}\n`;
     }
     if (reasoning) {
-      output += (output ? '\n---\n\n' : '') + `【子代理深度思考推理过程】\n${reasoning}`;
+      output += (output ? '\n---\n\n' : '') + `【子代理深度思考推理过程】\n${reasoning}\n`;
     }
+
+    const usage = data.usage || {};
+    const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? null;
+    const metaInfo = `\n---\n【服务端真实接收与执行证据】\n- 请求目标 URL: ${DEFAULT_BASE_URL}/chat/completions\n- 通信链路: ${PROXY_URL ? `代理 (${PROXY_URL})` : 'Direct (国内机房骨干直连)'}\n- 客户端传入: model=${model || DEFAULT_MODEL}, reasoning_effort=${targetEffort}\n- 服务端实际模型: ${data.model || 'unknown'}\n- 推理 Token (reasoning_tokens): ${reasoningTokens !== null ? reasoningTokens : '内置于 reasoning_content'}\n- 补全 Token 消耗: ${usage.completion_tokens || 0} / 总计: ${usage.total_tokens || 0}`;
+    output += metaInfo;
+
     if (!output) {
       output = '(模型未返回具体文本)';
     }
@@ -192,15 +361,8 @@ async function executeSubagent({ user_goal, solution_summary, review_focus, task
       isError: false
     };
   } catch (error) {
-    clearTimeout(timer);
-    if (error.name === 'AbortError') {
-      return {
-        content: [{ type: "text", text: `[子代理审查超时]: 超过设定的 ${timeout} 秒上限。` }],
-        isError: true
-      };
-    }
     return {
-      content: [{ type: "text", text: `[子代理调用失败]: ${error.message}` }],
+      content: [{ type: "text", text: `[子代理解析失败]: ${error.message}` }],
       isError: true
     };
   }
@@ -244,6 +406,7 @@ process.stdin.on('data', async (chunk) => {
             task: args.task,
             files: args.files,
             model: args.model,
+            reasoning_effort: args.reasoning_effort,
             timeout: args.timeout
           });
         } else {

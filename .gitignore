@@ -20,3 +20,8 @@ profiles/
 # IDE main.js 干净基线内含官方内置 OAuth client_id/secret（GOCSPX），不入公开仓库；
 # 仅保留在本机 model-unlock/assets/ 或私有备份，换机需自行复制
 model-unlock/assets/prod-main-pre-tpe.js
+
+# 本地私有 API Key 配置，严禁入库
+tools/keys.json
+tools/*.local.json
+*.key
