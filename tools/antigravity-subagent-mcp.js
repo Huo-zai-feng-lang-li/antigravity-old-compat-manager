@@ -13,9 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_BASE_URL = process.env.SUBAGENT_BASE_URL || 'https://apihub.agnes-ai.com/v1';
+const DEFAULT_BASE_URL = (process.env.SUBAGENT_BASE_URL || 'https://apihub.agnes-ai.cn/v1').replace('apihhub.', 'apihub.');
 const DEFAULT_API_KEY = process.env.SUBAGENT_API_KEY || '';
-const DEFAULT_MODEL = process.env.SUBAGENT_MODEL || 'agnes-2.5-pro-beta';
+const DEFAULT_MODEL = process.env.SUBAGENT_MODEL || 'agnes-3.0-flash';
 
 // 审查专家的系统 Prompt
 const SYSTEM_AUDIT_PROMPT = `你是一个资深架构师兼严苛的安全与代码审计专家（Independent Review Subagent）。
@@ -38,13 +38,25 @@ const SYSTEM_AUDIT_PROMPT = `你是一个资深架构师兼严苛的安全与代
 
 const tools = [{
   name: "invoke_subagent",
-  description: "派发任务给独立且完全干净的子代理执行（API 驱动）。专用于代码审查（Code Review）、安全审计、逻辑核验或复杂方案推演。可自动读取关联文件。",
+  description: "派发任务给独立且完全干净的无状态子代理执行（API 驱动）。专用于代码审查（Code Review）、安全审计、逻辑核验或复杂方案推演。可自动读取关联文件并提供自包含全景业务上下文。",
   inputSchema: {
     type: "object",
     properties: {
+      user_goal: {
+        type: "string",
+        description: "【强烈推荐必填】用户原始目标与核心业务痛点背景（明确交代要解决什么实际问题、防御什么场景）"
+      },
+      solution_summary: {
+        type: "string",
+        description: "【强烈推荐必填】主代理的修复逻辑与架构改动说明（采用了何种方案、处理了哪些根因）"
+      },
+      review_focus: {
+        type: "string",
+        description: "【选填】需要子代理重点突破的边界条件、极端场景、时序并发或疑虑点"
+      },
       task: {
         type: "string",
-        description: "具体的审查指令或任务要求（例如：'审查刚刚修改的登录权限验证逻辑'）"
+        description: "【自包含综合指令】若未提供 user_goal 和 solution_summary 则必填此项。严禁使用'上一轮'、'如前所述'等伪连续代词，必须提供完整上下文。"
       },
       files: {
         type: "array",
@@ -53,24 +65,55 @@ const tools = [{
       },
       model: {
         type: "string",
-        description: "调用的审查模型（默认 agnes-2.5-pro-beta，支持深度思维链推导）",
-        default: "agnes-2.5-pro-beta"
+        description: "调用的审查模型（默认 agnes-3.0-flash，支持 xhigh 顶级思维链推导）",
+        default: "agnes-3.0-flash"
       },
       timeout: {
         type: "number",
         description: "请求超时秒数（默认 120 秒）",
         default: 120
       }
-    },
-    required: ["task"]
+    }
   }
 }];
 
 /**
  * 派发 API 执行子代理
  */
-async function executeSubagent({ task, files = [], model = DEFAULT_MODEL, timeout = 120 }) {
-  // 1. 组装文件上下文
+async function executeSubagent({ user_goal, solution_summary, review_focus, task, files = [], model = DEFAULT_MODEL, timeout = 120 }) {
+  // 1. 前置卫语句拦截：防空指令
+  if (!user_goal && !task) {
+    return {
+      content: [{
+        type: "text",
+        text: "[子代理协议拦截]: 缺少审查目标！必须提供 user_goal + solution_summary，或自包含的 task 指令。"
+      }],
+      isError: true
+    };
+  }
+
+  // 2. 前置卫语句拦截：防伪连续性口吻（无状态会话严禁假定有记忆）
+  const combinedDirective = `${user_goal || ''} ${solution_summary || ''} ${task || ''}`;
+  const pseudoContinuityRegex = /(上一轮|上一场|之前你提到|之前指出的|前面指出|如前所述|刚才说的|如上所示)/;
+  if (pseudoContinuityRegex.test(combinedDirective) && (!user_goal || !solution_summary)) {
+    return {
+      content: [{
+        type: "text",
+        text: "[子代理协议拦截]: 子代理为完全无状态（Stateless）独立单次会话，没有记忆！检测到指令中包含'上一轮'/'如前所述'等伪连续代词，且未提供完整的结构化上下文。请必须拆开提供【user_goal】（用户原始诉求）与【solution_summary】（主代理修复方案）后重试。"
+      }],
+      isError: true
+    };
+  }
+
+  // 3. 自动组装标准化三段式自包含 Prompt
+  let finalDirective = '';
+  if (user_goal && solution_summary) {
+    finalDirective = `【独立代码与架构审计任务】\n\n### 一、用户原始业务目标与痛点背景\n${user_goal}\n\n### 二、主代理修复方案与实现逻辑\n${solution_summary}\n\n### 三、审查重点\n${review_focus || task || '全链路边界条件、并发竞态、状态机收敛及潜在破坏性回归'}`;
+  } else {
+    finalDirective = task;
+  }
+
+  // 4. 组装文件上下文
   let fileContext = '';
   if (Array.isArray(files) && files.length > 0) {
     for (const filePath of files) {
@@ -89,8 +132,8 @@ async function executeSubagent({ task, files = [], model = DEFAULT_MODEL, timeou
   }
 
   const promptContent = fileContext
-    ? `${task}\n\n以下是待审查的相关文件源码：${fileContext}`
-    : task;
+    ? `${finalDirective}\n\n以下是待审查的相关文件源码：${fileContext}`
+    : finalDirective;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5, timeout) * 1000);
@@ -108,6 +151,7 @@ async function executeSubagent({ task, files = [], model = DEFAULT_MODEL, timeou
           { role: 'system', content: SYSTEM_AUDIT_PROMPT },
           { role: 'user', content: promptContent }
         ],
+        reasoning_effort: 'xhigh',
         temperature: 0.2
       }),
       signal: controller.signal
@@ -194,6 +238,9 @@ process.stdin.on('data', async (chunk) => {
         if (msg.params.name === 'invoke_subagent') {
           const args = msg.params.arguments || {};
           result = await executeSubagent({
+            user_goal: args.user_goal,
+            solution_summary: args.solution_summary,
+            review_focus: args.review_focus,
             task: args.task,
             files: args.files,
             model: args.model,
