@@ -61,6 +61,11 @@ const MODELS = [
   // 两项 uid 都是合成别名，由 _ag-gemini37-compat.cjs 的 UID_ALIAS 解析回真实 uid 并强制写 budget。
   { label: 'Gemini 4 Hydrogen (Fast)',        uid: 'gemini-4-hydrogen-sonar' },
   { label: 'Gemini 4 Hydrogen (High Effort)', uid: 'gemini-4-hydrogen-sonar-high' },
+  // 2026-11-24 第五轮：补一个「不下线 + 快 + 智商够」的兜底档。
+  // gemini-3-flash 实测 TTFT 1.35s（对比 Hydrogen 18s），流式吐明文 thought（thoughtParts 235 /
+  // thoughtChars 17234），思考过程在 UI 里可见，不会出现"零字节卡住"观感；
+  // 且不在 11-30 下线名单（Argon / 3.8 Flash / GPT-OSS-120b / Claude 4.6），可长期使用。
+  { label: 'Gemini 3 Flash (Fast)',           uid: 'gemini-3-flash' },
 ];
 if (MODELS.length === 0) {
   fs.copyFileSync(prePath, wbPath);

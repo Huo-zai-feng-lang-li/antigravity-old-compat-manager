@@ -11,9 +11,10 @@ import fs from 'node:fs';
 const wb = 'D:\\Antigravity\\resources\\app\\out\\vs\\workbench\\workbench.desktop.main.js';
 const s = fs.readFileSync(wb, 'utf8');
 const uids = [
-  // 与 patch-workbench.mjs 的 MODELS 保持同步（2026-11-24 第三轮：同一模型的动态/最强两档）
+  // 与 patch-workbench.mjs 的 MODELS 保持同步（2026-11-24 第五轮：两档 Gemini 4 + 一档 3 Flash 兜底）
   'gemini-4-hydrogen-sonar',
   'gemini-4-hydrogen-sonar-high',
+  'gemini-3-flash',
 ];
 const totalSynthetic = (s.match(/__agUid:/g) || []).length;
 if (uids.length === 0) {
