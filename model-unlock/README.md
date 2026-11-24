@@ -23,8 +23,8 @@
 
 | 文件                             | 作用                                                                                                               |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `patch-workbench.mjs`          | 前端补丁生成器。从干净基线还原 workbench 后注入放行模型；5 锚点计数校验、注入后 `node --check`、失败自动回滚。**当前 `MODELS` 为 Claude 5.5 六档（2026-10-23 放行）**；空表时直接还原干净基线。以后加新模型只改它顶部的 `MODELS` 映射表（**必须先按《说明书》两验 uid 存在性 + 账号权限**） |
-| `verify-workbench.mjs`         | 只读校验当前运行态 workbench：每个放行 uid 应出现 3 次（下拉 / 可见列表 /store），并核对旁路与启动守卫。IDE 开着也能跑                                      |
+| `patch-workbench.mjs`          | 前端补丁生成器。从干净基线还原 workbench 后注入放行模型；5 锚点计数校验、注入后 `node --check`、失败自动回滚。**当前 `MODELS` 为 Claude 5.5 六档（2026-10-23 放行）**；空表时直接还原干净基线。**三处 concat 前都先按 label 剔除官方同名牌**（官方 Recommended 组会滚动下发同名模型，2026-11-13 修复"偶发下拉重复"）。以后加新模型只改它顶部的 `MODELS` 映射表（**必须先按《说明书》两验 uid 存在性 + 账号权限**） |
+| `verify-workbench.mjs`         | 只读校验当前运行态 workbench：每个放行 uid 应出现 3 次（下拉 / 可见列表 /store），核对旁路与启动守卫，并断言 3 处同名去重守卫（`agDedup` 计数 = 3）。IDE 开着也能跑                                      |
 | `list-official-uids.mjs`       | 从 `fetchAvailableModels.json` 列出官方全部 Claude/Gemini uid，加模型前用来取真实 uid                                             |
 | `capture-official-catalog.mjs` | **新模型发布后取真实 uid 的护栏脚本**：临时让 zk 落盘官方 `fetchAvailableModels` 响应；`check`/`install`/`restore` 三态，自动备份 + 锚点自检 + `node --check` 失败回滚。详见《说明书-以后加新模型看这里.md》 |
 | `decode-official-models.mjs`   | 辅助：从 zk 诊断日志 `_ea_diag.log` 的 `OFFICIAL-BODY-HEX` 解出模型目录（一般用 capture 即可，此为备用）|
@@ -86,3 +86,5 @@ node model-unlock/verify-workbench.mjs
   里 `fetch("http://127.0.0.1:8937/__agtarget...")` 的端口。
 
 * 打补丁前必须彻底关 IDE（含 language\_server），否则 workbench 文件被占用、写入不完整。
+
+* **同名去重方向不能反**：官方 Recommended 组里已经会出现同名项（Claude 5.5 六档、Gemini 3.8 Medium/Low），但它们**没有 `__agUid`**，选中会被 `/__agtarget` 回退上报成默认 `gemini-3.8-flash-high`（界面选 Claude、实际跑 3.8）。所以去重一律"留合成项、剔官方同名牌"，三处 concat 前都用 `LABELS` 过滤（`agDedup` 标记，`verify-workbench.mjs` 断言计数 = 3）。

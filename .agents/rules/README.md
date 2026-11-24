@@ -122,6 +122,7 @@
 **前端注入红线（违反会导致 IDE 卡死）**
 - 只能用“表达式内 `.concat(内联字面量)`”或函数块体 `{}` 内独立语句；禁止在逗号连接的 let/const 声明链中间插以分号结尾的独立语句。
 - 启动不强选合成模型：可见列表 dutE、store vKc 必须**条件 concat**（官方 clientModelConfigs 非空才追加），默认选中永远由官方配置驱动（=默认 3.8）；合成项一律 concat 在官方项之后。
+- **同名去重（2026-11-13 定，防"偶发下拉重复"）**：官方 `fetchAvailableModels` 的 Recommended 组会滚动下发同名模型（Claude 5.5 六档、Gemini 3.8 Medium/Low），三处 concat 前必须先用 `LABELS` 剔除官方同名牌再追加合成项，每个 label 只留一项。**方向不可反**：留合成项（带 `__agUid`，能正确上报路由）、剔官方同名牌（无 `__agUid`，选中会被 `/__agtarget` 回退成默认 3.8）。三处去重都以 `agDedup` 标记，`verify-workbench.mjs` 断言计数 = 3。
 - 不动 workbench 状态机/排序；5 个锚点各自计数必须恰为 1，否则 `ANCHOR CHECK FAILED` 不写入；注入后必须 `node --check`，失败回滚干净基线。
 
 **工具链入库红线**

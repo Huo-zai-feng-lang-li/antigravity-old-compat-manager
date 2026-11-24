@@ -1,0 +1,222 @@
+{
+  "probedAt": "2026-11-24T02:27:30Z",
+  "project": "aicode-consumers",
+  "catalogCount": 13,
+  "catalog": [
+    "gemini-2.5-flash",
+    "claude-sonnet-4-6",
+    "gemini-3.8-flash-tiered",
+    "gemini-3.1-flash-lite",
+    "gemini-3-flash",
+    "gpt-oss-120b-medium",
+    "gemini-2.5-flash-thinking",
+    "claude-opus-4-6-thinking",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-image",
+    "gemini-4-hydrogen-sonar"
+  ],
+  "ok": [
+    {
+      "uid": "gemini-2.5-flash",
+      "status": 200,
+      "ver": "gemini-2.5-flash",
+      "err": null
+    },
+    {
+      "uid": "claude-sonnet-4-6",
+      "status": 200,
+      "ver": "claude-sonnet-4-6",
+      "err": null
+    },
+    {
+      "uid": "gemini-3.8-flash-tiered",
+      "status": 200,
+      "ver": "gemini-3.8-flash-tiered",
+      "err": null
+    },
+    {
+      "uid": "gemini-3.1-flash-lite",
+      "status": 200,
+      "ver": "gemini-3.1-flash-lite",
+      "err": null
+    },
+    {
+      "uid": "gemini-3-flash",
+      "status": 200,
+      "ver": "gemini-3-flash",
+      "err": null
+    },
+    {
+      "uid": "gpt-oss-120b-medium",
+      "status": 200,
+      "ver": "gpt-oss-120b-medium",
+      "err": null
+    },
+    {
+      "uid": "gemini-2.5-flash-thinking",
+      "status": 200,
+      "ver": "gemini-2.5-flash-thinking",
+      "err": null
+    },
+    {
+      "uid": "claude-opus-4-6-thinking",
+      "status": 200,
+      "ver": "claude-opus-4-6-thinking",
+      "err": null
+    },
+    {
+      "uid": "gemini-2.5-flash-lite",
+      "status": 200,
+      "ver": "gemini-2.5-flash-lite",
+      "err": null
+    },
+    {
+      "uid": "gemini-3.5-flash-lite",
+      "status": 200,
+      "ver": "gemini-3.5-flash-lite",
+      "err": null
+    },
+    {
+      "uid": "gemini-4-hydrogen-sonar",
+      "status": 200,
+      "ver": "gemini-4-hydrogen-sonar",
+      "err": null
+    }
+  ],
+  "dead": [
+    {
+      "uid": "gemini-2.5-pro",
+      "status": 503,
+      "ver": null,
+      "err": "No capacity available for model gemini-2.5-pro on the server"
+    },
+    {
+      "uid": "gemini-3.1-flash-image",
+      "status": 200,
+      "ver": null,
+      "err": null
+    },
+    {
+      "uid": "claude-opus-5-5-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "claude-opus-5-5-medium",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "claude-opus-5-5-low",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "claude-sonnet-5-5-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "claude-sonnet-5-5-medium",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "claude-sonnet-5-5-low",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash-medium",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash-low",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash-n",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-3.8-flash-t",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-hydrogen-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-hydrogen-medium",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-hydrogen-low",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-neon-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-carbon-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "gemini-4-argon-high",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "orchestrator-argon",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    },
+    {
+      "uid": "orchestrator-carbon",
+      "status": 404,
+      "ver": null,
+      "err": "Requested entity was not found."
+    }
+  ]
+}

@@ -2,10 +2,14 @@
  * Antigravity 旧版 workbench 新模型放行补丁（正式工具，随仓库入库）。
  *
  * 作用：在渲染进程 workbench.desktop.main.js 的模型下拉/可见列表/store/回显/选择回调
- *       5 个锚点注入放行模型（当前 8 项：Claude 5.5 六档 + Gemini 3.8 Medium/Low）。
+ *       5 个锚点注入放行模型（2026-11-24：4 项 = Gemini 4 Hydrogen / 3.8 Tiered / Claude 4.6 两档）。
  *       空表时直接把 wb 还原为干净基线，下拉与官方原生一致。幂等：每次都从干净 Gemini37
  *       基线 assets/prod-wb-pre-claude.js 还原后再注入；注入后先在内存校验语法，
  *       通过才落盘并同步 product.json checksum，失败则任何文件都不写，绝不留半成品。
+ *       同名去重：官方 Recommended 组若已含同名项（含 disabled），先按 label 剔除再追加合成项，
+ *       避免同一模型在下拉出现两项（2026-11-13 修复，见 verify-workbench 的 agDedup 计数）。
+ *       僵尸屏蔽：旧客户端硬编码、服务端已下线的项（3.8 三档等）按 label 剔除，
+ *       名单由 probe-models.py 实测产出的 model-health.json 驱动（见 agBlock 计数）。
  *
  * 用法：先彻底关闭 Antigravity（ag=0、ls=0），再 `node model-unlock/patch-workbench.mjs`，
  *       或直接运行仓库根目录的 `放行Claude六档.ps1 -ForceKill`（会先关进程再调本脚本）。
@@ -42,20 +46,21 @@ const MODELS = [
   //
   //   { label: 'Gemini X.Y Flash (High)', uid: 'gemini-x.y-flash-high' },
   //
-  // 2026-10-23：账号官方目录（fetchAvailableModels 实时抓取，103433B / 26 models）已下发 Claude 5.5 六档，
-  //   放行以下六项。Gemini 4 Argon / gemini-4 / gemini5 / gemini-3.9 在官方目录中均为 0 命中，不存在，不放。
-  { label: 'Claude Opus 5.5 (High)',   uid: 'claude-opus-5-5-high' },
-  { label: 'Claude Opus 5.5 (Medium)', uid: 'claude-opus-5-5-medium' },
-  { label: 'Claude Opus 5.5 (Low)',    uid: 'claude-opus-5-5-low' },
-  { label: 'Claude Sonnet 5.5 (High)',   uid: 'claude-sonnet-5-5-high' },
-  { label: 'Claude Sonnet 5.5 (Medium)', uid: 'claude-sonnet-5-5-medium' },
-  { label: 'Claude Sonnet 5.5 (Low)',    uid: 'claude-sonnet-5-5-low' },
-  //
-  // 2026-10-23：放出 Gemini 3.8 Medium / Low 两档（官方原生下拉只给了 High）。
-  //   thinkingBudget 由后端 _agApplyThinkingBudget 按 uid 动态设置：
-  //   high=-1 / medium=4000 / low=1000，不再无条件抹平为 -1。
-  { label: 'Gemini 3.8 Flash (Medium)', uid: 'gemini-3.8-flash-medium' },
-  { label: 'Gemini 3.8 Flash (Low)',    uid: 'gemini-3.8-flash-low' },
+  // 2026-10-23：账号官方目录（fetchAvailableModels 实时抓取，103433B / 26 models）已下发 Claude 5.5 六档。
+  // 2026-11-24 大改：服务端按 tier 收窄了可用集，下列 uid 经直连网关实测（真实 UA + 有效 OAuth）：
+  //   ✅ 200：gemini-4-hydrogen-sonar / gemini-3.8-flash-tiered / claude-sonnet-4-6 / claude-opus-4-6-thinking
+  //   ❌ 404：gemini-3.8-flash-{high,medium,low}（三档已下线，仅 tiered 存活）、claude-{opus,sonnet}-5-5-*
+  //          （需 paid AI Pro，本账号 currentTier=standard-tier）、gemini-4-{neon,carbon,argon}、
+  //          gemini-4-hydrogen-{high,medium,low}、orchestrator-*
+  // Gemini 4 Hydrogen 是 standard-tier 唯一开放档（官方文档：Hydrogen 全档位可用，Neon/Carbon/Argon 需 paid Pro）。
+  // 3.8 全系与 Claude 4.6 于 2026-11-30 下线（官方 Leaving Soon），届时需再次换表。
+  // Claude 5.5 六档待验证（直连 404，但旧客户端头可能走兼容路由），验证通过再补回。
+  // 2026-11-24 第四轮：Gemini 4 不返回明文 thought（只有 thoughtSignature），
+  // 思考期客户端零输出，budget 越大越像"卡住"（-1/16384 实测 TTFT 16~18s，4000 约 6.7s）。
+  // 因此 Fast 档固定 4000，High Effort 档保留 16384 供长任务使用。
+  // 两项 uid 都是合成别名，由 _ag-gemini37-compat.cjs 的 UID_ALIAS 解析回真实 uid 并强制写 budget。
+  { label: 'Gemini 4 Hydrogen (Fast)',        uid: 'gemini-4-hydrogen-sonar' },
+  { label: 'Gemini 4 Hydrogen (High Effort)', uid: 'gemini-4-hydrogen-sonar-high' },
 ];
 if (MODELS.length === 0) {
   fs.copyFileSync(prePath, wbPath);
@@ -64,10 +69,56 @@ if (MODELS.length === 0) {
   process.exit(0);
 }
 
+// ===== 僵尸项屏蔽 =====
+// 旧版 IDE 客户端把一部分模型硬编码在下拉里，服务端下线后这些项仍然显示、选中必然失败。
+// 名单不手写，由 `python model-unlock/probe-models.py` 实测（真实 token 打 streamGenerateContent）
+// 产出 model-health.json 的 dead 列表驱动；这里只映射「客户端下拉里真实存在」的 label，
+// 未命中映射的 uid 不进黑名单，避免误杀。
+const HEALTH_PATH = path.join(__dirname, 'model-health.json');
+// 用户明确不要、即使服务端仍可用也不放进下拉的模型（GPT-OSS 120B 实测 200，但不需要）。
+// 与 health.json 的 dead 列表合并，health 读不到时也照常生效。
+const ALWAYS_BLOCKED_UID = [
+  'gpt-oss-120b-medium',
+  // 用户要求只保留 Gemini 4：下列虽然现在还能返回 200，但都在 11-30 下线名单内，提前移除
+  'gemini-3.8-flash-tiered',
+  'claude-sonnet-4-6',
+  'claude-opus-4-6-thinking',
+];
+// uid → 下拉里可能出现的全部 label 写法（服务端 displayName 与客户端硬编码可能不同，全部覆盖防漏）
+const UID_TO_LABEL = {
+  'gemini-3.8-flash-high': ['Gemini 3.8 Flash (High)'],
+  'gemini-3.8-flash-medium': ['Gemini 3.8 Flash (Medium)'],
+  'gemini-3.8-flash-low': ['Gemini 3.8 Flash (Low)'],
+  'gemini-3.8-flash-tiered': ['Gemini 3.8 Flash (Tiered)'],
+  'claude-sonnet-4-6': ['Claude Sonnet 4.6 (Thinking)'],
+  'claude-opus-4-6-thinking': ['Claude Opus 4.6 (Thinking)'],
+  'gpt-oss-120b-medium': ['GPT-OSS 120B (Medium)', 'GPT-OSS 120B'],
+};
+const labelsOf = (uids) => [...new Set(uids.flatMap((u) => UID_TO_LABEL[u] || []))];
+let BLOCKED = [];
+try {
+  const health = JSON.parse(fs.readFileSync(HEALTH_PATH, 'utf8'));
+  BLOCKED = labelsOf([...(health.dead || []).map((d) => d.uid), ...ALWAYS_BLOCKED_UID]);
+  console.log('探测时间:', health.probedAt || '?', '| 屏蔽项:', BLOCKED.length ? BLOCKED.join(' / ') : '(无)');
+} catch {
+  BLOCKED = labelsOf(ALWAYS_BLOCKED_UID);
+  console.log('WARN: 未读取 model-health.json，仅屏蔽常驻排除项:', BLOCKED.join(' / ') || '(无)');
+}
+const BLOCKED_LIT = '[' + BLOCKED.map((x) => JSON.stringify(x)).join(',') + ']';
+
 const optLit = m => '{label:' + JSON.stringify(m.label) +
   ',value:0,modelAlias:8,__agUid:' + JSON.stringify(m.uid) +
   ',disabled:!1,supportsImages:!0,supportedMimeTypes:new Map(),betaWarningMessage:"",isBeta:!1,pricingType:0,description:"",quotaInfo:{remainingFraction:1,resetTime:{seconds:"0",nanos:0}},tagTitle:"New",tagDescription:""}';
 const ARR = '[' + MODELS.map(optLit).join(',') + ']';
+// 官方目录（fetchAvailableModels 的 Recommended 组）已把同名列进推荐，且每次刷新下发的内容会变；
+// 直接 concat 会让同一 label 出现两项（"偶发下拉重复"根因）。三处注入统一先剔除官方同名牌，
+// 再追加合成项：每个 label 只留一项，且留下的一定是带 __agUid 的合成项
+//（官方同名项没有 __agUid，选中会被 /__agtarget 回退上报成默认 3.8）。
+const LABELS = '[' + MODELS.map(m => JSON.stringify(m.label)).join(',') + ']';
+// agDedup 是统一去重标记，verify-workbench.mjs 按它计数（必须恰好 3 处）
+const noDup = v => '.filter(' + v + '=>!/*agDedup*/' + LABELS + '.includes(' + v + '.label))';
+// agBlock 是僵尸项屏蔽标记（名单来自 model-health.json 的 dead），verify-workbench.mjs 按它计数（必须恰好 3 处）
+const noBlock = v => '.filter(' + v + '=>!/*agBlock*/' + BLOCKED_LIT + '.includes(' + v + '.label))';
 
 fs.copyFileSync(prePath, wbPath);
 let s = fs.readFileSync(wbPath, 'utf8');
@@ -76,23 +127,24 @@ const patches = [
   // 下拉分组(nKc)：无条件追加（仅影响下拉显示，不参与启动默认选择）
   { name: 'nKc recommended',
     old: 'return i?(i.groups[0].options||[]).filter(n=>!e.some(s=>s.label===n.label)):[]',
-    neu: 'return (i?(i.groups[0].options||[]).filter(n=>!e.some(s=>s.label===n.label)):[]).concat(' + ARR + ')' },
+    neu: 'return (i?(i.groups[0].options||[]).filter(n=>!e.some(s=>s.label===n.label))' + noDup('n') + noBlock('n') + ':[]).concat(' + ARR + ')' },
   // visibleModelConfigs(dut E)：仅当官方配置已加载才追加，避免启动早期 E 仅含合成项被当默认选中
   { name: 'dut E modelOptions',
     old: '.filter(F=>!F.disabled),[o?.cascadeModelConfigData])',
-    neu: '.filter(F=>!F.disabled).concat(((o?.cascadeModelConfigData?.clientModelConfigs||[]).length>0)?' + ARR + ':[]),[o?.cascadeModelConfigData])' },
+    neu: '.filter(F=>!F.disabled)' + noDup('F') + noBlock('F') + '.concat(((o?.cascadeModelConfigData?.clientModelConfigs||[]).length>0)?' + ARR + ':[]),[o?.cascadeModelConfigData])' },
   // Xlt store modelOptions(vKc)：同理，官方非空才追加
   { name: 'vKc modelOptions',
     old: 'modelSorts:o,modelOptions:a,',
-    neu: 'modelSorts:o,modelOptions:a.concat(a.length?' + ARR + ':[]),' },
+    neu: 'modelSorts:o,modelOptions:a' + noDup('n') + noBlock('n') + '.concat(a.length?' + ARR + ':[]),' },
   // 回显匹配：alias:8 被 3.8 与所有 Claude 档共用，优先按最近一次选择的 label 精确匹配
   { name: 'Kun echo match',
     old: 'function Kun(t,e){return e.find(i=>{let n=t?.choice;return n?.case==="model"&&i.value===n?.value||n?.case==="alias"&&i.modelAlias===n?.value})}',
     neu: 'function Kun(t,e){let m=i=>{let n=t?.choice;return n?.case==="model"&&i.value===n?.value||n?.case==="alias"&&i.modelAlias===n?.value};let g=globalThis.__agSelLabel;return(g&&e.find(i=>i.label===g&&m(i)))||e.find(m)}' },
-  // 选择即旁路上报：合成项带 __agUid，官方项无 __agUid 回退 3.8 默认
+  // 选择即旁路上报：合成项带 __agUid 才上报（官方项没有 __agUid，说明 LS 自己有真实 uid，
+  // 绝不能回退成硬编码 uid，否则会把已 404 的 gemini-3.8-flash-high 写进旁路、顶掉用户真正的选择）
   { name: 'I select report',
     old: 'let I=Zt((F,D=!0)=>{r("selected_model_changed",ah({name:F.label},"model label from server-controlled set"));let N=',
-    neu: 'let I=Zt((F,D=!0)=>{r("selected_model_changed",ah({name:F.label},"model label from server-controlled set"));try{globalThis.__agSelLabel=F.label;fetch("http://127.0.0.1:8937/__agtarget?uid="+encodeURIComponent((F&&F.__agUid)||"gemini-3.8-flash-high")+"&label="+encodeURIComponent((F&&F.label)||"")).catch(()=>{});}catch{}let N=' },
+    neu: 'let I=Zt((F,D=!0)=>{r("selected_model_changed",ah({name:F.label},"model label from server-controlled set"));try{globalThis.__agSelLabel=F.label;let u=F&&F.__agUid;if(u)fetch("http://127.0.0.1:8937/__agtarget?uid="+encodeURIComponent(u)+"&label="+encodeURIComponent((F&&F.label)||"")).catch(()=>{});}catch{}let N=' },
 ];
 
 let ok = true;

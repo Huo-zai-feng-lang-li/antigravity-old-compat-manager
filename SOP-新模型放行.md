@@ -9,7 +9,7 @@
 
 1. **前端 workbench 注入**（`model-unlock\patch-workbench.mjs`，目标 `D:\Antigravity\resources\app\out\vs\workbench\workbench.desktop.main.js`）：
    - 每个放行项借 `modelAlias:8`（RECOMMENDED，唯一能正常发 v1internal 的外壳；alias:7=AUTO 会在 LS 内级联挂起，禁用），并带自定义字段 `__agUid:"真实uid"`（不进 LS 网络请求，仅供上报）。
-   - 5 处注入：下拉分组 nKc（无条件 concat）、可见列表 dutE（**条件** concat，官方配置加载后才追加，保证启动默认 3.8）、Xlt 的 vKc（非空才 concat）、回显匹配 Kun（alias:8 共用，按最近选择的 label 精确匹配防串台）、选择器 I（选中即无阻塞 `fetch http://127.0.0.1:8937/__agtarget?uid=...&label=...`）。
+   - 5 处注入：下拉分组 nKc（**先按 label 剔除官方同名牌**再 concat，官方 Recommended 组会滚动下发同名 Claude/Gemini 项）、可见列表 dutE（**条件** concat，官方配置加载后才追加，保证启动默认 3.8；同样先去重）、Xlt 的 vKc（非空才 concat，同样先去重）、回显匹配 Kun（alias:8 共用，按最近选择的 label 精确匹配防串台）、选择器 I（选中即无阻塞 `fetch http://127.0.0.1:8937/__agtarget?uid=...&label=...`）。
 2. **zk 路由落盘**（源码 `Antigravity-Injection/plugins/zk-proxy-pro/vendor/bundled-origin/source.js` 的 `/__agtarget`）：收选择 → 读-改-写 `_agcap/_ag-selected.json`（`{last, bySid}`，带 CORS）。renderer 沙箱无 fs，CSP 已放行 `connect-src http://127.0.0.1:*`，故走本地 HTTP。
 3. **zk 改道**（同目录 `_ag-gemini37-compat.cjs` 的 `_agReadSelected`）：LS 主对话统一发占位符 `gemini-2.5-pro`，compat 按 `URL 模型名 > 旁路选择（bySid→last，120 分钟新鲜窗口）> 默认 gemini-3.8-flash-high` 覆盖 `body.model`，并在改前把主对话 `thinkingBudget` 提升为 -1（High/动态）。
 
@@ -66,7 +66,9 @@ IDE 自动更新或修复会覆盖 `workbench.desktop.main.js`，Claude 注入�
 ## 七、已知边界 / 后续可选增强
 
 - 启动默认模型固定为官方 3.8（条件 concat 已保证不强选合成项）；合成模型仅用户主动选。
-- 多会话隔离：compat 已支持按 `sessionId` 精确路由（bySid），但前端上报当前 sid 传空，单活跃会话用 last 已够；需要多会话并行不同模型时，再在 workbench 注入处把当前会话 id 随 `/__agtarget` 带上。
+- **Gemini 4 / Orchestrator 在本机旧 IDE 上不可放行（2026-11-16 实测）**：官方虽已于 2026-11-12 发布 `gemini-4-hydrogen` / `gemini-4-argon` / `gemini-4-carbon` 与 `orchestrator-{argon,carbon}`，但本机实时 `fetchAvailableModels` 目录仍是 23 models、上述 uid 全部 0 命中；用当前有效 OAuth 令牌直连 `v1internal:streamGenerateContent`，同令牌的 `gemini-3.8-flash-high` 返回 200，而 `gemini-4-{hydrogen,hydrogen-high,hydrogen-low,hydrogen-xhigh,argon,argon-high,carbon,carbon-high}` 与 `orchestrator-{argon,carbon}` / `orchestrator` / `agent-orchestrator-argon` **全部 404 `Requested entity was not found.`**。换 UA（2.5.5 / 2.6.0 / CLI 1.0）与换 `project` 参数均不改变目录。`_ag-models-loadcodeassist.json` 显示 `currentTier=standard-tier`、`paidTier=g1-pro-tier`（Pro 信息存在但当前档位仍是 standard）；官方博客明确 Hydrogen / Orchestrator 面向 **paid Google AI Pro / Ultra** 推送。**结论：不要把 Gemini 4 写进 `MODELS`**——离线注入能过、网关必 404；要用只能换官方新版 Antigravity App/CLI（`agy models`）或先确认账号/地区满足 paid Pro 推送。
+- **偶发下拉重复（2026-11-13 已修）**：官方目录 `fetchAvailableModels` 现在会周期性把 Claude 5.5 六档、Gemini 3.8 Medium/Low 以 `recommended:true` 下进 `agentModelSorts`，经 `pUc` 生成 Recommended 组后，旧版 nKc 再无条件 concat 一次，同一 label 就出现两项；刷新没带 sorts 时又正常，表现为"偶发"，切模型会触发配置重刷所以更容易碰到。现在三处 concat 前统一用 `LABELS` 剔除官方同名牌（保留带 `__agUid` 的合成项——官方同名项没有 `__agUid`，选中会被回退上报成默认 3.8）。`verify-workbench.mjs` 用 `agDedup` 计数 = 3 断言防回退。
+- 多会话隔离：compat 已支持按 `sessionId` 精确路由（bySid），但前端上报当前 sid 传空，单活跃会话用 last 已够；需要多会话并行不同模型时，再在 workbench 注入处把当前会话 id 随 `/__agtarget` 带上。**测试新 uid 时不要把 `_ag-selected.json` 的全局 `last` 指向未知/404 uid**——`bySid` 为空的并行会话会全部回落到它，2026-11-16 已因此导致 IDE 整体崩溃；测试前先备份，测试后立即恢复并重启。
 - 更彻底的前端自愈：可把 model-unlock\patch-workbench.mjs 的 5 处注入做进 `scripts/StableMode.Core.psm1` 的 workbench 补丁生成器（ConvertFrom/ConvertTo/Test 成套 + 离线往返断言），使 IDE 更新后启动即自动恢复 Claude，无需手动跑脚本（当前为独立脚本 + 本 SOP）。
 - **模式前提**：模型旁路改道与 thinkingBudget 提升只在 zk 模式为 `custom`（默认）时生效；切到 `passthrough`（官方直连/零改写紧急模式）时所有改写静默停用、占位符直透。要放行新模型必须保持 custom。
 - **上报失败静默回退**：renderer 选中后 `fetch /__agtarget` 若失败（zk 未启动/写盘 500），前端不弹窗，会安全退回默认 3.8（界面显示与实际模型可能短暂不符）。zk 与 IDE 同扩展启动、正常在线时不触发；后续可在补丁 catch 加 `console.warn` 并检查 `res.ok`（需重打 workbench + GUI 复验，当前未改已验证前端）。

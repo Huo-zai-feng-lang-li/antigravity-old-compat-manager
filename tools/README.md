@@ -18,14 +18,35 @@
 
 ## 2. 工具定义与协议规范
 
-### 工具名称：`invoke_subagent`
+### 工具 1：`invoke_subagent` (单任务 / 兼容并发)
+
+派发任务给独立且完全干净的无状态子代理执行（API 驱动）。专用于代码审查（Code Review）、安全审计、逻辑核验或复杂方案推演。默认使用 **max 顶级思维链推理**，优先 **3.0 (agnes-3.0-flash)**，超时自动无缝降级 **2.5 (agnes-2.5-flash)**。
 
 | 参数名 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `task` | `string` | **是** | 审查任务的具体要求、改动说明、架构背景及关注重点 |
-| `files` | `string[]` | 否 | 需要子代理从物理磁盘自动读取的源文件绝对路径列表（支持批量装配） |
-| `agent_type` | `string` | 否 | 兼容旧版参数保留，默认留空即可 |
-| `timeout` | `number` | 否 | API 调用超时时间（毫秒，默认 120,000 即 2 分钟） |
+| `user_goal` | `string` | 推荐必填 | 用户原始目标与核心业务痛点背景（解决什么问题、防御什么场景） |
+| `solution_summary` | `string` | 推荐必填 | 主代理修复逻辑与架构改动说明（采用了何种方案、处理了哪些根因） |
+| `review_focus` | `string` | 否 | 审查重点关注的边界、竞态、死锁或疑虑点 |
+| `task` | `string` | 条件必填 | 自包含综合指令（未提供 user_goal 时必填） |
+| `files` | `string[]` | 否 | 需子代理自动读取的源文件绝对路径列表（自动编号装配） |
+| `tasks` | `object[]` | 否 | **并发模式**：若传入对象数组，自动并发派出多个子代理并汇总报告 |
+| `model` | `string` | 否 | 默认优先 `agnes-3.0-flash`，超时自动降级 `agnes-2.5-flash` |
+| `reasoning_effort`| `string` | 否 | 默认锁定 `'max'`（顶级深度思考推理） |
+| `timeout` | `number` | 否 | 请求超时秒数（默认 120 秒） |
+
+---
+
+### 工具 2：`invoke_subagents_parallel` (显式并发子代理群)
+
+一次并发派发多个独立的无状态子代理并行执行。各子代理使用 **max 顶级推理强度**，在独立大模型端点并发执行，互不阻塞，并自动汇总各子代理独立审查结论。
+
+| 参数名 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `tasks` | `object[]` | **是** | 并发子代理任务对象列表（包含 `name`, `user_goal`, `solution_summary`, `review_focus`, `task`, `files` 等） |
+| `concurrency` | `number` | 否 | 最大并发数（默认 5，范围 1~10） |
+| `model` | `string` | 否 | 默认优先 `agnes-3.0-flash`，超时自动降级 `agnes-2.5-flash` |
+| `reasoning_effort`| `string` | 否 | 默认锁定 `'max'` |
+| `timeout` | `number` | 否 | 单个子代理请求超时秒数（默认 120 秒） |
 
 ---
 
@@ -34,7 +55,7 @@
 ### 3.1 IDE MCP 配置
 
 打开全局 MCP 配置文件：
-`%USERPROFILE%\.gemini\antigravity\mcp_config.json`（或项目级 `.vscode/mcp.json`），配置如下：
+`%USERPROFILE%\.gemini\antigravity\mcp_config.json`，配置如下：
 
 ```json
 {
@@ -45,9 +66,10 @@
         "D:\\Desktop\\Super-File\\AI-IDE\\AI\\反重力\\antigravity-old-compat-manager\\tools\\antigravity-subagent-mcp.js"
       ],
       "env": {
-        "SUBAGENT_BASE_URL": "https://apihub.agnes-ai.com/v1",
+        "SUBAGENT_BASE_URL": "https://apihub.agnes-ai.cn/v1",
         "SUBAGENT_API_KEY": "sk-your-api-key-here",
-        "SUBAGENT_MODEL": "agnes-2.5-pro-beta"
+        "SUBAGENT_MODEL": "agnes-3.0-flash",
+        "SUBAGENT_FALLBACK_MODEL": "agnes-2.5-flash"
       }
     }
   }
